@@ -1,0 +1,23 @@
+schema_version = "1.0.0"
+
+id = "eachlabs"
+version = "0.1.0"
+name = "Eachlabs"
+tagline = "Generate images and videos from your renders with Eachlabs"
+maintainer = "Eachlabs"
+type = "add-on"
+website = "https://www.eachlabs.ai"
+
+tags = ["Render", "Sequencer"]
+
+blender_version_min = "4.2.0"
+
+license = ["SPDX:GPL-3.0-or-later"]
+copyright = ["2026 Eachlabs"]
+
+[permissions]
+network = "Send renders to Eachlabs and download generated results"
+files = "Write renders and generated results next to the .blend file"
+
+[build]
+paths_exclude_pattern = ["__pycache__/", "*.pyc", ".*"]
