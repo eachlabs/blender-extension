@@ -1,0 +1,34 @@
+{
+  "version": "v1",
+  "blocklist": [],
+  "data": [
+    {
+      "schema_version": "1.0.0",
+      "id": "eachlabs",
+      "name": "Eachlabs",
+      "tagline": "Generate images and videos from your renders with Eachlabs",
+      "version": "0.1.0",
+      "type": "add-on",
+      "maintainer": "Eachlabs",
+      "license": [
+        "SPDX:GPL-3.0-or-later"
+      ],
+      "blender_version_min": "4.2.0",
+      "website": "https://www.eachlabs.ai",
+      "copyright": [
+        "2026 Eachlabs"
+      ],
+      "permissions": {
+        "network": "Send renders to Eachlabs and download generated results",
+        "files": "Write renders and generated results next to the .blend file"
+      },
+      "tags": [
+        "Render",
+        "Sequencer"
+      ],
+      "archive_url": "./eachlabs-0.1.0.zip",
+      "archive_size": 54917,
+      "archive_hash": "sha256:21f87767846359a1ddca24a7af0c44cd2158f220318ccdefb1a7c798670d3ef2"
+    }
+  ]
+}
