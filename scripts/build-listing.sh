@@ -1,14 +1,19 @@
 #!/usr/bin/env bash
-# Add the built zip to a static extensions repository and regenerate its listing (index.json and
-# index.html). <site> is the folder GitHub Pages serves; older zips in it stay listed.
-# Usage: BLENDER=/path/to/blender scripts/build-listing.sh <site>
+# Write the extensions repository listing for the built zip: <dir>/index.json, index.html and the zip.
+# Upload the zip and index.json to the GitHub release; Blender reads releases/latest/download/index.json,
+# and its relative archive URL points at the same release's zip, so <dir> holds this version only.
+# Usage: BLENDER=/path/to/blender scripts/build-listing.sh <dir>
 set -euo pipefail
 
 BLENDER="${BLENDER:-blender}"
 cd "$(dirname "$0")/.."
-site=${1:?usage: scripts/build-listing.sh <site>}
+dir=${1:?usage: scripts/build-listing.sh <dir>}
 zip=$(ls -t dist/eachlabs-*.zip | head -1)
-mkdir -p "$site"
-cp "$zip" "$site/"
-"$BLENDER" --command extension server-generate --repo-dir="$site" --html
-echo "listed $(basename "$zip") in $site/index.json"
+if [ -e "$dir" ] && [ -n "$(ls -A "$dir")" ]; then
+    echo "$dir is not empty; the listing must hold only $(basename "$zip")"
+    exit 1
+fi
+mkdir -p "$dir"
+cp "$zip" "$dir/"
+"$BLENDER" --command extension server-generate --repo-dir="$dir" --html
+echo "listed $(basename "$zip") in $dir/index.json"

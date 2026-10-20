@@ -25,7 +25,7 @@ The step-by-step guide, with screenshots, is at
 [docs.eachlabs.ai/integrations/blender](https://docs.eachlabs.ai/integrations/blender).
 
 1. In *Edit > Preferences > Get Extensions*, open *Repositories*, press **+**, choose *Add Remote
-   Repository* and enter `https://eachlabs.github.io/blender-extension/index.json`. Then search for
+   Repository* and enter `https://github.com/eachlabs/blender-extension/releases/latest/download/index.json`. Then search for
    **Eachlabs** and press **Install**. Blender keeps it updated with your other extensions.
    Alternatively, download the zip from [Releases](https://github.com/eachlabs/blender-extension/releases/latest)
    (or build it, below) and drag it into a Blender window.
@@ -149,7 +149,7 @@ BLENDER=/path/to/blender scripts/build.sh                        # validate and 
 BLENDER=/path/to/blender scripts/verify-install.sh               # install the zip in a fresh profile
 BLENDER=/path/to/blender scripts/gui-check.sh                    # real Blender window, fake API, screenshots
 BLENDER=/path/to/blender scripts/tutorial-shots.sh <dir>         # tutorial images from the built zip, no predictions
-BLENDER=/path/to/blender scripts/build-listing.sh <site>         # add the zip to the extensions repository listing
+BLENDER=/path/to/blender scripts/build-listing.sh <dir>          # release listing: upload index.json and the zip
 ```
 
 `scripts/e2e_live.py` runs the real flow against the API and makes paid predictions; see its
