@@ -2,7 +2,7 @@
 
 import bpy
 
-from . import compat, timing
+from . import compat, thread_safety, timing
 
 TAG = "eachlabs_job"
 
@@ -22,10 +22,14 @@ def _image_editors():
 
 
 def show_in_image_editor(image):
-    """Show ``image`` in an Image Editor: an open one, else Blender's render view, else a new window."""
+    """Show ``image`` in an Image Editor: an open one, else Blender's render view, else a new window.
+    Returns False when it was not shown: in background mode, or with no open editor while the chat runs
+    on Blender 4.2, where opening one would call operators under temp_override."""
     if bpy.app.background:
         return False
     editors = list(_image_editors())
+    if not editors and thread_safety.ops_override_unsafe():
+        return False
     if not editors:
         wm = bpy.context.window_manager
         window = wm.windows[0]
