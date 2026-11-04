@@ -213,7 +213,7 @@ closes the menu. It is dimmed while a run is going. In a narrow bar it sits on i
 
 | Mode | What a run does |
 |---|---|
-| Prototype (default) | Quick drafts with a plainer look: GPT-6.1 Terra answers every stage, materials and light get 1 round each, main objects 1 detail round, no reference pictures and no generated textures (free textures and node materials instead), and the concept picture comes from Z-Image Turbo (about $0.005). Layout, camera, check, the visual check and the fixes keep their rounds, so nothing is left broken. At most 40 rounds |
+| Prototype (default) | Quick drafts with a plainer look: GPT-6.1 Terra answers every stage, materials and light get 1 round each, main objects 1 detail round, no reference pictures and no generated textures (free textures and node materials instead), and the concept picture comes from Z-Image Turbo. Layout, camera, check, the visual check and the fixes keep their rounds, so nothing is left broken. At most 40 rounds |
 | Final | Full detail: the rounds, the models, the detail and the reference pictures set in the preferences |
 
 The plan card shows a run's price before it builds.
@@ -223,12 +223,12 @@ set a model of your own). In Final, the *Light and materials model*
 answers light and materials (Sonnet 5.5 by default), and the *Main objects' detail model* details the main
 objects (GPT-6 Astra by default). *Best quality* makes GPT-6 Astra the scene's model and switches to Final.
 
-| Model | Good for | About, per scene of one to three prompts in Final |
-|---|---|---|
-| GPT-6 Sol (default) | Most complete scenes | $2-3 an animal, about $10 a room (with Sonnet light, GPT-6 Astra main objects, reference pictures) |
-| Best quality (GPT-6 Astra) | The most detailed objects, slower | $10+ |
-| Sonnet 5.5 | Richer light and materials | $4-6 |
-| Opus 5.5 | Best light, builds less | $10+ |
+| Model | Good for |
+|---|---|
+| GPT-6 Sol (default) | Most complete scenes |
+| Best quality (GPT-6 Astra) | The most detailed objects, slower |
+| Sonnet 5.5 | Richer light and materials |
+| Opus 5.5 | Best light, builds less |
 
 ### Settings
 
@@ -255,7 +255,7 @@ Under *Detail*:
 | Detail rounds | 3 (0-8) | Model rounds each main object gets after the layout (one less for a medium one, one more for its close-up); 0 turns the detail stage off |
 | Secondary detail rounds | 1 (0-4) | Model rounds each secondary object (a tree, a bench, a rock) gets after the main ones; 0 leaves them as the layout built them |
 | Objects at once | 3 (1-6) | Main objects the detail stage works on at the same time; their Blender steps still run one at a time |
-| Reference pictures | On | A picture of each main object for the chat to build it to, about $0.15 each, shown on the plan; after each detail round the object is compared with it. On, every new scene asks for Build first |
+| Reference pictures | On | A picture of each main object for the chat to build it to, with its price shown on the plan; after each detail round the object is compared with it. On, every new scene asks for Build first |
 | Detail thinking | Normal | *More* asks the model to think longer on each detail step: slower, and a step is cut off more often |
 
 Under *3D objects*:
@@ -289,7 +289,7 @@ Under *3D objects*:
 - Copies of a detailed object (`Pine_001`, `Pine_002` of `Pine_000`) are rebuilt from it, sharing its meshes.
 - A change details only the objects it adds and the ones it points at; the rest of the scene is left as it is.
 - With **Reference pictures** on, the plan lists the main objects that get a picture, with the price
-  (`References: car, church · $0.30`). Each one is drawn after **Build**, while the layout is built, and the
+  (`References: car, church`). Each one is drawn after **Build**, while the layout is built, and the
   chat builds its object to it: after each round the object is compared with the picture and the differences
   go to the next round. The object is still built from parts in code.
 
@@ -299,7 +299,7 @@ Under *3D objects*:
   single piece** with no parts of its own, such as a statue, a boulder or a carved ornament, may be
   generated. Buildings, vehicles, furniture, lamps, people and plants are always built in code.
 - When the scene has such a piece, the chat shows a **plan** first: the pieces it will generate as real 3D
-  models, with the total price ($0.45 each) and about how long they take one by one. Click a piece to move it
+  models, with the total price and about how long they take one by one. Click a piece to move it
   between 3D and code; your choice always stands. Objects with parts are listed under code and cannot move.
   Nothing is generated until you press **Build**; **Cancel** puts your prompt back.
 - A plan is shown only when there is something to decide or pay for. A solid piece you call realistic,
@@ -323,7 +323,7 @@ Under *3D objects*:
 ### Concept picture and textures
 
 - Nothing is drawn before you press **Build** on a plan that shows the price. A plan of objects has one line
-  for them: `Looks: a concept picture and up to 6 textures · up to $1.05` ($0.15 each). When no plan of objects
+  for them: `Looks: a concept picture and up to 6 textures`. When no plan of objects
   is shown (*3D objects* is *Off*, the change adds nothing, or the chat could not make a plan), a plan with only
   that line asks first. **Cancel** draws nothing and puts your prompt back.
 - **Concept picture.** When a new scene's stages start, `nano-banana-pro` draws the scene from your prompt.
