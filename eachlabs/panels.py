@@ -51,6 +51,15 @@ def draw_status(layout, context):
     row.operator("eachlabs.refresh_catalog", text="", icon="FILE_REFRESH")
     if state == "ERROR":
         _wrap(layout, context, catalog.STATUS["message"], alert=True)
+    mcp = preferences.mcp_status
+    row = layout.row(align=True)
+    row.label(text=mcp["text"] or "MCP not checked",
+              icon="CHECKMARK" if mcp["ok"] else "ERROR" if mcp["ok"] is False else "PLUGIN")
+    row.operator("eachlabs.check_mcp", text="", icon="FILE_REFRESH")
+    prefs = preferences.get_preferences(context)
+    if prefs is not None:
+        layout.prop(prefs, "chat_code_check")
+        _wrap(layout, context, "Checks the chat's Blender Python before it runs.")
     if not bpy.data.filepath:
         _wrap(layout, context, "Unsaved file: inputs and results go to a temp folder. Save to keep them next to the .blend.",
               icon="INFO")
@@ -158,6 +167,81 @@ def draw_video(layout, context):
     layout.operator("eachlabs.export_movie", icon="SEQUENCE")
 
 
+STAGE_ICONS = {"done": "CHECKMARK", "active": "SORTTIME", "failed": "ERROR", "cancelled": "CANCEL", "partial": "INFO"}
+CHAT_ACTIONS = {"retry": ("eachlabs.chat_retry_stage", "FILE_REFRESH"), "undo": ("eachlabs.chat_undo_stage", "LOOP_BACK"),
+                "frame": ("eachlabs.chat_frame_result", "ZOOM_SELECTED"), "play": ("eachlabs.chat_play", "PLAY"),
+                "prefs": ("eachlabs.open_preferences", "PREFERENCES"),
+                "network": ("eachlabs.open_preferences", "PREFERENCES"), "new": ("eachlabs.chat_new_scene", "ADD"),
+                "code": ("eachlabs.chat_show_code", "TEXT"), "final": ("eachlabs.chat_final_render", "RENDER_STILL")}
+
+
+def draw_chat(layout, context):
+    """The scene chat without the prompt bar (Skia unavailable): a prompt, Build, and the run's state."""
+    import time
+
+    from . import chat_run, overlay
+    from .chat import playback
+    from .ui import bar, bar_state, tokens
+
+    chat = chat_run.STATE
+    finished = chat.status in ("done", "stopped", "cancelled") and not chat.running
+    undoable = chat_run.undoable_stages() if finished else None
+    playing = playback.is_playing(context)
+    cameras = playback.menu(context.scene) if finished and chat.status == "done" and not playing else []
+    state = bar_state.from_chat(chat, overlay.FIELD, False, time.monotonic(), has_scene=chat_run.has_scene(),
+                                undoable=undoable, advanced=preferences.advanced_tools(), cameras=cameras,
+                                playing=playing)
+    session = context.window_manager.eachlabs
+    layout.prop(session, "chat_prompt", text="")
+    row = layout.row(align=True)
+    row.scale_y = 1.3
+    if chat_run.STATE.running:
+        row.operator("eachlabs.chat_cancel", text="Stop", icon="CANCEL")
+    else:
+        row.enabled = state.send_enabled
+        row.operator("eachlabs.chat_send", text="Build", icon="PLAY").prompt = session.chat_prompt
+    if state.mode == "plan":  # the plan waits for Build; Stop above is its Cancel
+        for text, chips in ((state.plan_3d, [c for c in state.plan_chips if c[2] == "3d"]),
+                            (state.plan_code, [c for c in state.plan_chips if c[2] == "code"])):
+            if text:
+                _wrap(layout, context, text)
+            col = layout.column(align=True)
+            for index, label, mode, cached in chips:
+                text = "%s · %s" % (label, tokens.PLAN_CACHED) if cached and mode == "3d" else label
+                col.operator("eachlabs.chat_plan_toggle", text=text,
+                             icon="MESH_MONKEY" if mode == "3d" else "SCRIPT").index = index
+        _wrap(layout, context, state.plan_note or tokens.PLAN_HINT)
+        layout.operator("eachlabs.chat_plan", text="Build", icon="PLAY").answer = "build"
+    if state.stages:
+        row = layout.row(align=True)
+        for stage, value in state.stages.items():
+            row.label(text=stage.capitalize(), icon=STAGE_ICONS.get(value, "DOT"))
+    if state.mode == "waiting":
+        layout.label(text="%s · %d s" % (tokens.THINKING, state.thinking_seconds), icon="SORTTIME")
+        if state.thinking_seconds >= tokens.SLOW_AFTER:
+            _wrap(layout, context, tokens.SLOW_TEXT)
+    for text, alert in ((state.status, False), (state.reply, False), (state.error, True)):
+        if text:
+            _wrap(layout, context, text, alert=alert)
+    if state.cost_text:
+        layout.label(text=state.cost_text)
+    if state.actions:
+        row = layout.row(align=True)
+        for action in state.actions:
+            if action not in CHAT_ACTIONS:  # Keep, and Stop while running: the Build row has them
+                continue
+            idname, icon = CHAT_ACTIONS[action]
+            if action == "play":  # Play as the chosen camera and its camera menu, or Pause while it plays
+                sub = row.row(align=True)
+                sub.operator(idname, text=bar.play_label(state), icon="PAUSE" if state.playing else icon)
+                if state.play_camera and not state.playing:
+                    sub.operator_menu_enum("eachlabs.chat_play_camera", "camera", text="", icon="CAMERA_DATA")
+                continue
+            props = row.operator(idname, text=bar.action_label(action, state.stages, state.undo_stage), icon=icon)
+            if action == "network":
+                props.section = "SYSTEM"
+
+
 def draw_jobs(layout, context):
     registry = pipeline.REGISTRY
     if not registry.jobs:
@@ -185,10 +269,16 @@ def draw_jobs(layout, context):
         row.operator("eachlabs.clear_jobs", icon="TRASH")
 
 
+def _chat_fallback():
+    from . import overlay
+
+    return not overlay.active()
+
+
 SPACES = (("VIEW_3D", "view3d"), ("SEQUENCE_EDITOR", "sequencer"))
 
 
-def _panel(space, suffix, name, label, draw, parent=None, closed=False):
+def _panel(space, suffix, name, label, draw, parent=None, closed=False, poll=None):
     attrs = {
         "bl_space_type": space,
         "bl_region_type": "UI",
@@ -200,6 +290,8 @@ def _panel(space, suffix, name, label, draw, parent=None, closed=False):
         attrs["bl_parent_id"] = parent
     if closed:
         attrs["bl_options"] = {"DEFAULT_CLOSED"}
+    if poll:
+        attrs["poll"] = classmethod(lambda cls, context: poll())
     return type("EACHLABS_PT_%s_%s" % (suffix, name), (bpy.types.Panel,), attrs)
 
 
@@ -208,8 +300,10 @@ def _classes():
     for space, suffix in SPACES:
         main = _panel(space, suffix, "main", "Eachlabs", draw_status)
         parent = main.__name__
+        classes.append(main)
+        if space == "VIEW_3D":
+            classes.append(_panel(space, suffix, "chat", "Scene Chat", draw_chat, parent, poll=_chat_fallback))
         classes += [
-            main,
             _panel(space, suffix, "image", "Generate Image from View", draw_image, parent),
             _panel(space, suffix, "video", "Generate Video from Camera Move", draw_video, parent),
             _panel(space, suffix, "jobs", "Jobs", draw_jobs, parent),
