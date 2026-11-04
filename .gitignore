@@ -6,3 +6,4 @@ dist/
 .gui-check/
 examples/*/output/
 .DS_Store
+eachlabs/wheels/
