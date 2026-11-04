@@ -126,6 +126,7 @@ class EachlabsTargetItem(bpy.types.PropertyGroup):
 class EachlabsSession(bpy.types.PropertyGroup):
     image_targets: CollectionProperty(type=EachlabsTargetItem)
     video_targets: CollectionProperty(type=EachlabsTargetItem)
+    chat_prompt: StringProperty(name="Prompt", description="Describe the scene you imagine")
 
 
 CLASSES = (EachlabsBinding, EachlabsParam, EachlabsAction, EachlabsSceneSettings,
