@@ -10,7 +10,7 @@ import shutil
 
 import bpy
 
-from . import compat, main_thread, timing
+from . import compat, main_thread, thread_safety, timing
 
 _SETTINGS = (
     ("render", "filepath"),
@@ -163,6 +163,8 @@ def _run(context, scene, configure, animation, mode, on_done, on_fail):
     global _pending
     if busy():
         return "Another render is running; wait for it to finish."
+    if mode == VIEWPORT and _view3d(context)[1] is not None and thread_safety.ops_override_unsafe():
+        return thread_safety.WAIT_FOR_CHAT  # the viewport snapshot runs under temp_override
     saved = snapshot(scene)
     try:
         expected = configure(scene)
