@@ -3,9 +3,11 @@
 Endpoints and response shapes follow the public API reference at https://docs.eachlabs.ai.
 """
 
+import http.client
 import json
 import os
 import ssl
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -13,10 +15,12 @@ import urllib.request
 DEFAULT_BASE_URL = "https://api.eachlabs.ai"
 DEFAULT_TIMEOUT = 30
 DOWNLOAD_TIMEOUT = 120
+CHAT_TIMEOUT = 120.0  # seconds one chat round may take
+READ_TIMEOUT = 20  # seconds one read of a result download may wait: a stopped download ends soon after Stop
 MAX_UPLOAD_BYTES = 100 * 1024 * 1024
 MAX_DOWNLOAD_BYTES = 4 * 1024 * 1024 * 1024
 UPLOAD_RETENTION_SECONDS = 7 * 24 * 3600
-CHUNK = 1024 * 1024
+CHUNK = 64 * 1024  # the cancel event is checked between chunks
 
 QUEUED = "QUEUED"
 RUNNING = "RUNNING"
@@ -53,6 +57,11 @@ class ApiError(Exception):
         self.url = url
 
     @property
+    def rate_limited(self):
+        """The API reports some rate limits as HTTP 400, so the message decides, not only the status."""
+        return self.status in (400, 429) and "rate" in self.message.lower()
+
+    @property
     def transient(self):
         return self.status is None or self.status == 429 or self.status >= 500
 
@@ -76,8 +85,10 @@ _STATUS_TEXT = {
     409: "Conflict; the run may already be finished",
     422: "The request could not be processed",
     429: "Too many requests; try again shortly",
+    500: "Eachlabs had an internal error; try again",
     502: "Eachlabs could not reach the model provider",
     503: "Eachlabs is temporarily unavailable",
+    504: "Eachlabs did not answer in time; try again",
 }
 
 
@@ -97,7 +108,7 @@ def error_text(status, body):
             details = _details_text(data.get("details"))
             if details and details.lower() not in message.lower():
                 message = "%s: %s" % (message, details) if message else details
-        elif data is None:
+        elif data is None and not body.lower().startswith(("<!doctype html", "<html")):  # unreadable page
             message = body[:300]
     if not message:
         message = _STATUS_TEXT.get(status, "Request failed")
@@ -180,6 +191,24 @@ def _ssl_context():
     return context
 
 
+def _secure(url):
+    """True for an https URL, or a plain one on this computer (tests and local servers)."""
+    parsed = urllib.parse.urlparse(url)
+    return parsed.scheme == "https" or (parsed.scheme == "http"
+                                        and parsed.hostname in ("localhost", "127.0.0.1", "::1"))
+
+
+class _SecureRedirects(urllib.request.HTTPRedirectHandler):
+    """Follows a download's redirects only to https, so a result link cannot be turned into plain http."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        target = urllib.parse.urljoin(req.full_url, newurl)
+        if not _secure(target) or (urllib.parse.urlparse(req.full_url).scheme == "https"
+                                   and urllib.parse.urlparse(target).scheme != "https"):
+            raise ApiError("Refusing a download redirect to a non-https URL", url=req.full_url)
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
 class EachlabsClient:
     def __init__(self, api_key, base_url=DEFAULT_BASE_URL, user_agent="eachlabs-blender", timeout=DEFAULT_TIMEOUT):
         self.api_key = (api_key or "").strip()
@@ -188,6 +217,8 @@ class EachlabsClient:
         self.timeout = timeout
         context = _ssl_context()
         self._opener = urllib.request.build_opener(urllib.request.HTTPSHandler(context=context))
+        self._downloads = urllib.request.build_opener(urllib.request.HTTPSHandler(context=context),
+                                                      _SecureRedirects())
 
     # -- transport ---------------------------------------------------------------------------
 
@@ -197,9 +228,9 @@ class EachlabsClient:
             url += "?" + urllib.parse.urlencode(query)
         return url
 
-    def _open(self, request, timeout):
+    def _open(self, request, timeout, opener=None):
         try:
-            return self._opener.open(request, timeout=timeout)
+            return (opener or self._opener).open(request, timeout=timeout)
         except urllib.error.HTTPError as exc:
             body = b""
             try:
@@ -211,11 +242,11 @@ class EachlabsClient:
             raise ApiError(error_text(exc.code, body), status=exc.code, url=request.full_url) from None
         except urllib.error.URLError as exc:
             reason = getattr(exc, "reason", exc)
-            raise ApiError("Network error: %s" % (reason,), url=request.full_url) from None
+            raise ApiError("Network error: %s" % (str(reason) or type(reason).__name__,), url=request.full_url) from None
         except (TimeoutError, OSError) as exc:
-            raise ApiError("Network error: %s" % (exc,), url=request.full_url) from None
+            raise ApiError("Network error: %s" % (str(exc) or type(exc).__name__,), url=request.full_url) from None
 
-    def _json(self, method, path, body=None, query=None, auth=True):
+    def _json(self, method, path, body=None, query=None, auth=True, timeout=None):
         headers = {"Accept": "application/json", "User-Agent": self.user_agent}
         data = None
         if body is not None:
@@ -226,14 +257,35 @@ class EachlabsClient:
                 raise ApiError("No API key set. Add one in the Eachlabs add-on preferences.")
             headers["Authorization"] = "Bearer " + self.api_key
         request = urllib.request.Request(self._url(path, query), data=data, headers=headers, method=method)
-        with self._open(request, self.timeout) as response:
-            raw = response.read()
+        try:
+            with self._open(request, timeout or self.timeout) as response:
+                raw = response.read()
+        except (TimeoutError, OSError, http.client.HTTPException) as exc:  # the body broke off or timed out
+            raise ApiError("Network error: %s" % (str(exc) or type(exc).__name__,), url=request.full_url) from None
         if not raw.strip():
             return {}
         try:
             return json.loads(raw.decode("utf-8"))
         except ValueError:
             raise ApiError("Unexpected non-JSON response from %s" % path, url=request.full_url) from None
+
+    # -- chat --------------------------------------------------------------------------------
+
+    def chat_completion(self, model, messages, tools, timeout=CHAT_TIMEOUT, max_tokens=None, reasoning=True,
+                        effort=None):
+        """One ``/v1/chat/completions`` round; returns the parsed reply. ``max_tokens`` caps the reply's length;
+        ``reasoning=False`` asks the model to answer without its hidden reasoning; ``effort`` ("high") asks for
+        more of it."""
+        body = {"model": model, "messages": messages}
+        if max_tokens:
+            body["max_tokens"] = int(max_tokens)
+        if not reasoning:
+            body["reasoning"] = {"enabled": False}
+        elif effort:
+            body["reasoning"] = {"effort": effort}
+        if tools:
+            body["tools"] = tools
+        return self._json("POST", "/v1/chat/completions", body=body, timeout=timeout)
 
     # -- catalog -----------------------------------------------------------------------------
 
@@ -266,6 +318,21 @@ class EachlabsClient:
 
     def get_workflow(self, workflow_id):
         return self._json("GET", "/v1/workflows/" + urllib.parse.quote(workflow_id, safe=""))
+
+    def create_workflow(self, name, definition, visibility="private"):
+        """``POST /v1/workflows``; returns the new workflow with ``workflow_id`` and its first version."""
+        result = self._json("POST", "/v1/workflows", body={"name": name, "definition": definition,
+                                                            "visibility": visibility})
+        if not result.get("workflow_id"):
+            raise ApiError("Workflow was not created")
+        return result
+
+    def put_workflow_version(self, workflow_id, version_id, definition, published=True):
+        """``PUT /v1/workflows/{id}/versions/{version}``: creates the version when it is new, else replaces its
+        definition; returns the version."""
+        path = "/v1/workflows/%s/versions/%s" % (
+            urllib.parse.quote(workflow_id, safe=""), urllib.parse.quote(version_id, safe=""))
+        return self._json("PUT", path, body={"definition": definition, "published": bool(published)})
 
     def get_balance(self):
         return self._json("GET", "/v1/billing/balance")
@@ -308,8 +375,8 @@ class EachlabsClient:
             raise ApiError(error_text(None, json.dumps(result)) if result else "Prediction was not created")
         return prediction_id
 
-    def get_prediction(self, prediction_id):
-        return self._json("GET", "/v1/prediction/" + urllib.parse.quote(prediction_id, safe=""))
+    def get_prediction(self, prediction_id, timeout=None):
+        return self._json("GET", "/v1/prediction/" + urllib.parse.quote(prediction_id, safe=""), timeout=timeout)
 
     def cancel_prediction(self, prediction_id):
         return self._json("POST", "/v1/prediction/%s/cancel" % urllib.parse.quote(prediction_id, safe=""))
@@ -325,24 +392,28 @@ class EachlabsClient:
             raise ApiError("Workflow was not triggered")
         return execution_id
 
-    def get_execution(self, execution_id):
-        return self._json("GET", "/v1/workflows/executions/" + urllib.parse.quote(execution_id, safe=""))
+    def get_execution(self, execution_id, timeout=None):
+        return self._json("GET", "/v1/workflows/executions/" + urllib.parse.quote(execution_id, safe=""),
+                          timeout=timeout)
 
     # -- downloads ---------------------------------------------------------------------------
 
-    def download(self, url, dest_path, cancel_event=None, max_bytes=MAX_DOWNLOAD_BYTES):
-        """Stream ``url`` to ``dest_path``; return the response content type. Sends no API key."""
-        parsed = urllib.parse.urlparse(url)
-        if parsed.scheme != "https" and parsed.hostname not in ("localhost", "127.0.0.1", "::1"):
+    def download(self, url, dest_path, cancel_event=None, max_bytes=MAX_DOWNLOAD_BYTES, wait_seconds=None):
+        """Stream ``url`` to ``dest_path``; return the response content type. Sends no API key. With
+        ``wait_seconds``, a download still running after that long fails."""
+        if not _secure(url):
             raise ApiError("Refusing to download a non-https result URL")
         request = urllib.request.Request(url, headers={"User-Agent": self.user_agent})
         partial = dest_path + ".part"
         total = 0
+        deadline = time.monotonic() + wait_seconds if wait_seconds else None
         try:
-            with self._open(request, DOWNLOAD_TIMEOUT) as response, open(partial, "wb") as out:
+            with self._open(request, READ_TIMEOUT, self._downloads) as response, open(partial, "wb") as out:
                 content_type = response.headers.get("Content-Type", "")
                 while True:
                     _check(cancel_event)
+                    if deadline is not None and time.monotonic() > deadline:
+                        raise ApiError("The download took longer than %d seconds" % wait_seconds)
                     chunk = response.read(CHUNK)
                     if not chunk:
                         break
