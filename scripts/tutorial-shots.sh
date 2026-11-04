@@ -10,7 +10,11 @@ set -euo pipefail
 BLENDER="${BLENDER:-blender}"
 cd "$(dirname "$0")/.."
 out="${1:-$(mktemp -d "${TMPDIR:-/tmp}/eachlabs-tutorial.XXXXXX")}"
-zip=$(ls -t dist/eachlabs-*.zip | head -1)
+case "$(uname -s)-$(uname -m)" in  # the zip for this machine
+    Darwin-arm64) platform=macos_arm64 ;; Darwin-*) platform=macos_x64 ;;
+    Linux-*) platform=linux_x64 ;; *) platform=windows_x64 ;;
+esac
+zip=$(ls -t dist/eachlabs-*-"$platform".zip | head -1)
 mkdir -p "$out/repo"
 cp "$zip" "$out/repo/"
 
