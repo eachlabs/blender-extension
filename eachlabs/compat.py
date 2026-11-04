@@ -2,6 +2,8 @@
 
 import bpy
 
+from .ui import tokens
+
 # Strip speed is set with a Speed Control effect on every version. RetimingKeys from Python crash
 # Blender 4.2 on add(), and on 5.2 they resolve to the wrong strip whenever the sequencer holds
 # more than one strip, then crash on write (verified with probe scripts, see docs/architecture.md).
@@ -79,5 +81,29 @@ def online_problem():
     if bpy.app.online_access:
         return None
     if getattr(bpy.app, "online_access_override", False):
-        return "Blender was started with --offline-mode. Restart without it to use Eachlabs."
-    return "Online access is off. Enable it in Preferences > System > Network > Allow Online Access."
+        return tokens.OFFLINE_MODE
+    return tokens.ONLINE_OFF
+
+
+# Scene building (see docs/architecture.md, "Version differences").
+
+
+def object_fcurves(obj):
+    """F-curves of the object's active action: in a slot's channelbag from 4.4, ``action.fcurves`` before."""
+    animation = obj.animation_data
+    action = animation.action if animation else None
+    if action is None:
+        return []
+    if hasattr(animation, "action_slot"):
+        from bpy_extras import anim_utils
+        if hasattr(anim_utils, "action_get_channelbag_for_slot"):
+            bag = anim_utils.action_get_channelbag_for_slot(action, animation.action_slot)
+            return list(bag.fcurves) if bag else []
+    return list(action.fcurves)
+
+
+def overlay_is_linear():
+    """True when the 3D view's POST_PIXEL framebuffer encodes to sRGB on write (4.x), so sRGB pixels
+    must be made linear first. No attribute marks this, so it is the one check by version: the GUI
+    check measured the send button at #ff833f in 4.2 and #ff3c15 in 5.2 with the same texture."""
+    return bpy.app.version < (5, 0, 0)
