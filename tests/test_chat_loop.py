@@ -677,7 +677,7 @@ class RetryTests(unittest.TestCase):
             return then.pop(0)
         return llm, calls
 
-    def test_a_gateway_failure_is_sent_once_more_with_the_same_messages(self):
+    def test_a_502_503_or_504_is_sent_once_more_with_the_same_messages(self):
         for status in (502, 503, 504):
             llm, calls = self.failing([status], TEXTS)
             result = run("a street", llm, lambda n, a: {}, lambda e: None, threading.Event())
@@ -901,7 +901,7 @@ class ReviewRetryTests(unittest.TestCase):
             return text_msg('{"allow": true, "reason": ""}')
         return call, calls
 
-    def test_a_gateway_failure_is_sent_once_more(self):
+    def test_a_504_is_sent_once_more(self):
         from eachlabs import code_review
         call, calls = self.llm([504])
         allowed, _reason = code_review.review("x = 1", chat_loop.retried(call, threading.Event()), [], "")

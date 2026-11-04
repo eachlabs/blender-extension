@@ -1,4 +1,4 @@
-"""Calling the language model: reply caps per model, retries on gateway errors, models that need reasoning, cut-off replies."""
+"""Calling the language model: reply caps per model, retries on 502-504, models that need reasoning, cut-off replies."""
 
 from dataclasses import dataclass
 
@@ -16,7 +16,7 @@ class ReplyCap:
 
 
 
-# The gateway in front of the model ends a call at 60 s, so a full-length reply must fit in about 35 s.
+# The Eachlabs chat API ends a call at 60 s, so a full-length reply must fit in about 35 s.
 # Replies that hit a 5000 cap took 28-35 s (144-179 tokens/s). Anthropic models write 90-130 tokens/s, so
 # their cap is 3000 (25-35 s), with shorter steps. The first matching id prefix wins; others get the default.
 MAX_TOKENS = 5000

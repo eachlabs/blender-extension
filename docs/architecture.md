@@ -596,7 +596,7 @@ Which handler gets a `LEFTMOUSE` press on the bar first, probed in 4.2.23 and 5.
   file also clears what the bar shows about the last run (the prompt history stays).
 - **Each model call asks for at most 5000 tokens** (`max_tokens`): replies that long took 28-35 s. The cap also
   counts the model's hidden reasoning, which can run to several thousand tokens before a stage's first
-  step. The gateway in front of the model ends a call at 60 s, and long code replies took about 40 s. The model is told to keep
+  step. The Eachlabs chat API ends a call at 60 s, and long code replies took about 40 s. The model is told to keep
   each step to about 80 lines, one per reply. A reply cut off at the limit does not run: the
   model is told so and the stage goes on. A reply that used all 5000 tokens counts as cut off, whatever its
   `finish_reason` says.
