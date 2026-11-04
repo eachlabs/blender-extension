@@ -6,7 +6,9 @@ import threading
 import bpy
 from bpy.props import EnumProperty, StringProperty
 
-from . import api_client, capabilities as caps, catalog, compat, main_thread, naming, pipeline, preferences
+from . import (api_client, capabilities as caps, catalog, chat_run, compat, confirm, jobs, main_thread, mcp_client,
+               naming, pipeline, preferences)
+from .ui import tokens
 
 
 class EACHLABS_OT_refresh_catalog(bpy.types.Operator):
@@ -60,6 +62,40 @@ class EACHLABS_OT_test_connection(bpy.types.Operator):
             main_thread.call_soon(lambda: status.update(text=result[0], ok=result[1]))
 
         threading.Thread(target=work, name="eachlabs-test", daemon=True).start()
+        main_thread.start()
+        return {"FINISHED"}
+
+
+class EACHLABS_OT_check_mcp(bpy.types.Operator):
+    bl_idname = "eachlabs.check_mcp"
+    bl_label = "Check MCP"
+    bl_description = "Check the connection to the Eachlabs MCP server"
+
+    def execute(self, context):
+        status = preferences.mcp_status
+        problem = compat.online_problem()
+        if problem:
+            status.update(text=problem, ok=False)
+            return {"CANCELLED"}
+        try:
+            values = preferences.settings(context)
+        except ValueError as exc:
+            status.update(text=str(exc), ok=False)
+            return {"CANCELLED"}
+        if not values["api_key"]:
+            status.update(text="Add your Eachlabs API key to start.", ok=False)
+            return {"CANCELLED"}
+        status.update(text="Checking MCP\u2026", ok=None)
+        base_url, api_key = values["base_url"], values["api_key"]
+
+        def work():
+            try:
+                ok, text = mcp_client.check(base_url, api_key)
+            except Exception as exc:  # A worker must always report back.
+                ok, text = False, str(exc) or "MCP check failed."
+            main_thread.call_soon(lambda: status.update(text=text, ok=ok))
+
+        threading.Thread(target=work, name="eachlabs-mcp-check", daemon=True).start()
         main_thread.start()
         return {"FINISHED"}
 
@@ -145,6 +181,11 @@ class EACHLABS_OT_cancel_job(bpy.types.Operator):
 
     job_id: StringProperty()
 
+    def invoke(self, context, event):
+        job = pipeline.REGISTRY.get(self.job_id)
+        local = job is None or job.state in (jobs.RENDERING, jobs.UPLOADING)  # nothing was sent to run yet
+        return confirm.ask(self, context, event, *(tokens.CONFIRM_CANCEL_LOCAL if local else tokens.CONFIRM_CANCEL_JOB))
+
     def execute(self, context):
         pipeline.cancel(self.job_id)
         main_thread.tag_redraw()
@@ -155,6 +196,9 @@ class EACHLABS_OT_clear_jobs(bpy.types.Operator):
     bl_idname = "eachlabs.clear_jobs"
     bl_label = "Clear finished"
     bl_description = "Remove finished jobs from the list"
+
+    def invoke(self, context, event):
+        return confirm.ask(self, context, event, *tokens.CONFIRM_CLEAR_JOBS)
 
     def execute(self, context):
         pipeline.REGISTRY.clear_finished()
@@ -191,6 +235,7 @@ class EACHLABS_OT_open_preferences(bpy.types.Operator):
 CLASSES = (
     EACHLABS_OT_refresh_catalog,
     EACHLABS_OT_test_connection,
+    EACHLABS_OT_check_mcp,
     EACHLABS_OT_generate_image,
     EACHLABS_OT_generate_video,
     EACHLABS_OT_rerun,
@@ -201,7 +246,7 @@ CLASSES = (
     EACHLABS_OT_clear_jobs,
     EACHLABS_OT_open_folder,
     EACHLABS_OT_open_preferences,
-)
+) + chat_run.CLASSES
 
 
 def register():
