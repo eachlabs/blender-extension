@@ -3,6 +3,7 @@ import socket
 import tempfile
 import threading
 import unittest
+import urllib.request
 from unittest import mock
 
 from eachlabs import api_client
@@ -88,11 +89,21 @@ class ErrorTest(ClientTestCase):
         with self.assertRaises(ApiError) as ctx:
             self.client.get_prediction("x")
         self.assertEqual(ctx.exception.message, "execution not found (HTTP 404)")
-        self.server.route("GET", "/v1/prediction/y", (502, {"Content-Type": "text/html"}, b"<html>Bad gateway</html>"))
+        self.server.route("GET", "/v1/prediction/y", (502, {"Content-Type": "text/plain"}, b"Bad gateway"))
         with self.assertRaises(ApiError) as ctx:
             self.client.get_prediction("y")
         self.assertIn("Bad gateway", ctx.exception.message)
         self.assertTrue(ctx.exception.transient)
+
+    def test_html_error_page_becomes_a_sentence(self):
+        page = (b'<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">\n<HTML><HEAD>'
+                b"<TITLE>ERROR: The request could not be satisfied</TITLE></HEAD><BODY>"
+                b"<H1>504 Gateway Timeout ERROR</H1></BODY></HTML>")
+        self.server.route("GET", "/v1/prediction/z", (504, {"Content-Type": "text/html"}, page))
+        with self.assertRaises(ApiError) as ctx:
+            self.client.get_prediction("z")
+        self.assertEqual(ctx.exception.message, "Eachlabs did not answer in time; try again (HTTP 504)")
+        self.assertNotIn("<", ctx.exception.message)
 
     def test_empty_body_uses_status_sentence(self):
         self.server.route("POST", "/v1/prediction", (422, {}, b""))
@@ -119,6 +130,52 @@ class ErrorTest(ClientTestCase):
         self.assertTrue(ctx.exception.transient)
 
 
+    def test_body_read_errors_become_api_errors(self):
+        import http.client
+
+        class Broken:
+            def __init__(self, exc):
+                self.exc = exc
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                return False
+
+            def read(self):
+                raise self.exc
+
+        for exc in (TimeoutError("timed out"), ConnectionResetError("reset"),
+                    http.client.IncompleteRead(b"{", 10)):
+            with mock.patch.object(self.client._opener, "open", return_value=Broken(exc)):
+                with self.assertRaises(ApiError) as ctx:
+                    self.client.chat_completion("m", [], [])
+            self.assertTrue(ctx.exception.message.startswith("Network error: "), ctx.exception.message)
+            self.assertIsNone(ctx.exception.status)
+
+    def test_empty_tools_are_left_out_of_the_body(self):
+        with mock.patch.object(self.client, "_json", return_value={}) as sent:
+            self.client.chat_completion("m", [{"role": "user", "content": "x"}], [])
+            self.client.chat_completion("m", [], [{"type": "function"}])
+        self.assertNotIn("tools", sent.call_args_list[0].kwargs["body"])
+        self.assertEqual(sent.call_args_list[1].kwargs["body"]["tools"], [{"type": "function"}])
+
+    def test_bare_timeout_names_its_type(self):
+        for where in ("open", "read"):
+            exc = TimeoutError()
+            if where == "open":
+                patch = mock.patch.object(self.client._opener, "open", side_effect=exc)
+            else:
+                body = mock.MagicMock()
+                body.__enter__.return_value.read.side_effect = exc
+                patch = mock.patch.object(self.client._opener, "open", return_value=body)
+            with patch:
+                with self.assertRaises(ApiError) as ctx:
+                    self.client.chat_completion("m", [], [])
+            self.assertEqual(ctx.exception.message, "Network error: TimeoutError", where)
+
+
 class PredictionTest(ClientTestCase):
     def test_create_sends_model_and_input_only(self):
         self.server.route("POST", "/v1/prediction",
@@ -139,6 +196,38 @@ class PredictionTest(ClientTestCase):
         self.assertEqual(self.server.find("POST", "/v1/workflows/trigger/wf/v2")[0].json(), {"inputs": {"shot": "u"}})
         self.server.route("GET", "/v1/workflows/executions/e-1", (200, {}, {"status": "running"}))
         self.assertEqual(self.client.get_execution("e-1")["status"], "running")
+
+    def test_create_workflow(self):
+        created = {"workflow_id": "wf-9", "name": "Blender 3D model", "versions": [{"version_id": "v1"}]}
+        self.server.route("POST", "/v1/workflows", (201, {}, created))
+        definition = {"steps": [{"id": "a", "type": "model", "model": "m", "params": {}}]}
+        result = self.client.create_workflow("Blender 3D model", definition)
+        self.assertEqual(result["workflow_id"], "wf-9")
+        request = self.server.find("POST", "/v1/workflows")[0]
+        self.assertEqual(request.json(), {"name": "Blender 3D model", "definition": definition,
+                                          "visibility": "private"})
+        self.assertEqual(request.headers["authorization"], "Bearer " + KEY)
+
+    def test_create_workflow_without_an_id_is_an_error(self):
+        self.server.route("POST", "/v1/workflows", (201, {}, {"name": "x"}))
+        with self.assertRaises(ApiError):
+            self.client.create_workflow("x", {}, visibility="public")
+        self.assertEqual(self.server.find("POST", "/v1/workflows")[0].json()["visibility"], "public")
+
+    def test_put_workflow_version(self):
+        self.server.route("PUT", "/v1/workflows/wf%2F1/versions/v3",
+                          (200, {}, {"version_id": "v3", "published": True}))
+        result = self.client.put_workflow_version("wf/1", "v3", {"steps": []})
+        self.assertEqual(result["version_id"], "v3")
+        request = self.server.find("PUT", "/v1/workflows/wf%2F1/versions/v3")[0]
+        self.assertEqual(request.json(), {"definition": {"steps": []}, "published": True})
+        self.client.put_workflow_version("wf/1", "v3", {"steps": []}, published=False)
+        self.assertFalse(self.server.find("PUT", "/v1/workflows/wf%2F1/versions/v3")[1].json()["published"])
+
+    def test_put_workflow_version_404(self):
+        with self.assertRaises(ApiError) as caught:
+            self.client.put_workflow_version("gone", "v2", {})
+        self.assertEqual(caught.exception.status, 404)
 
 
 class UploadTest(ClientTestCase):
@@ -207,6 +296,68 @@ class DownloadTest(ClientTestCase):
         with self.assertRaises(api_client.Cancelled):
             self.client.download(self.server.url + "/out/result", dest, cancel_event=event)
         self.assertEqual(os.listdir(self.tmp.name), [])
+
+    def test_a_stop_during_a_download_ends_it_at_the_next_chunk(self):
+        self.server.route("GET", "/out/result", (200, {}, b"\x00" * (api_client.CHUNK * 8)))
+
+        class StopAfterFirstChunk:
+            checks = 0
+
+            def is_set(self):
+                self.checks += 1
+                return self.checks > 2
+
+        dest = os.path.join(self.tmp.name, "r.download")
+        with self.assertRaises(api_client.Cancelled):
+            self.client.download(self.server.url + "/out/result", dest, cancel_event=StopAfterFirstChunk())
+        self.assertEqual(os.listdir(self.tmp.name), [])
+        self.assertLessEqual(api_client.CHUNK, 64 * 1024)
+        self.assertLessEqual(api_client.READ_TIMEOUT, 30)
+
+    def test_a_download_past_its_wait_limit_fails_and_leaves_no_file(self):
+        self.server.route("GET", "/out/result", (200, {}, b"\x00" * (api_client.CHUNK * 4)))
+        dest = os.path.join(self.tmp.name, "r.download")
+        clock = iter([0.0, 5.0, 11.0, 12.0, 13.0, 14.0])
+        with mock.patch.object(api_client.time, "monotonic", lambda: next(clock)):
+            with self.assertRaises(ApiError) as caught:
+                self.client.download(self.server.url + "/out/result", dest, wait_seconds=10)
+        self.assertEqual(caught.exception.message, "The download took longer than 10 seconds")
+        self.assertEqual(os.listdir(self.tmp.name), [])
+
+    def test_a_download_has_no_wait_limit_unless_one_is_given(self):
+        self.server.route("GET", "/out/result", (200, {}, b"\x00" * 1000))
+        dest = os.path.join(self.tmp.name, "r.download")
+        self.client.download(self.server.url + "/out/result", dest)
+        self.assertEqual(os.path.getsize(dest), 1000)
+        self.assertEqual(api_client.DOWNLOAD_TIMEOUT, 120)
+
+    def test_a_download_over_its_cap_stops_while_streaming(self):
+        self.server.route("GET", "/out/result", (200, {}, b"\x00" * 300000))
+        dest = os.path.join(self.tmp.name, "r.download")
+        with self.assertRaises(ApiError) as caught:
+            self.client.download(self.server.url + "/out/result", dest, max_bytes=100000)
+        self.assertIn("larger than", caught.exception.message)
+        self.assertEqual(os.listdir(self.tmp.name), [])
+
+    def test_a_redirect_to_plain_http_is_refused(self):
+        self.server.route("GET", "/out/moved", (302, {"Location": "http://cdn.example/x.png"}, b""))
+        dest = os.path.join(self.tmp.name, "r.download")
+        with self.assertRaises(ApiError) as caught:
+            self.client.download(self.server.url + "/out/moved", dest)
+        self.assertIn("redirect", caught.exception.message)
+        self.assertEqual(os.listdir(self.tmp.name), [])
+        handler = api_client._SecureRedirects()
+        request = urllib.request.Request("https://files.example/m.zip")
+        with self.assertRaises(ApiError):  # https never becomes http, not even to this computer
+            handler.redirect_request(request, None, 302, "Found", {}, "http://127.0.0.1/m.zip")
+        self.assertIsNotNone(handler.redirect_request(request, None, 302, "Found", {}, "https://cdn.example/m.zip"))
+
+    def test_a_redirect_that_stays_secure_is_followed(self):
+        self.server.route("GET", "/out/moved", (302, {"Location": "/out/result"}, b""))
+        self.server.route("GET", "/out/result", (200, {}, b"\x00" * 10))
+        dest = os.path.join(self.tmp.name, "r.download")
+        self.client.download(self.server.url + "/out/moved", dest)
+        self.assertEqual(os.path.getsize(dest), 10)
 
     def test_refuses_plain_http_results(self):
         with self.assertRaises(ApiError):
