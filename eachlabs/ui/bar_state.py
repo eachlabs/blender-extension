@@ -294,7 +294,8 @@ def _from_chat(chat, field, focused, now, caret_on=True, spinner_phase=0.0, key_
             s.status = T.CHECKING_TEXT if check == "checking" else _status(chat)
         return s
     if consent:
-        s.mode, s.actions, s.stages = "consent", list(CONSENT_ACTIONS), {}
+        s.mode, s.stages = "consent", {}
+        s.actions = [a for a in CONSENT_ACTIONS if T.CODE_CHECK_AVAILABLE or a != "consent_check"]
         return s
     if undoable is None:
         undoable = [st for st in chat.changed if chat.stages.get(st) == "done"]

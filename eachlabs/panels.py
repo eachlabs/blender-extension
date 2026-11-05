@@ -57,7 +57,9 @@ def draw_status(layout, context):
               icon="CHECKMARK" if mcp["ok"] else "ERROR" if mcp["ok"] is False else "PLUGIN")
     row.operator("eachlabs.check_mcp", text="", icon="FILE_REFRESH")
     prefs = preferences.get_preferences(context)
-    if prefs is not None:
+    from .ui import tokens
+
+    if prefs is not None and tokens.CODE_CHECK_AVAILABLE:
         layout.prop(prefs, "chat_code_check")
         _wrap(layout, context, "Checks the chat's Blender Python before it runs.")
     if not bpy.data.filepath:

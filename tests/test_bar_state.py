@@ -322,8 +322,8 @@ class NextStepTest(unittest.TestCase):
 
     def test_consent_card(self):
         s = state(chat(status="done", stages={"layout": "done"}, reply="x"), focused=True, consent=True)
-        self.assertEqual((s.mode, s.actions, s.stages),
-                         ("consent", ["consent_check", "consent_plain", "consent_cancel"], {}))
+        self.assertEqual((s.mode, s.actions, s.stages), ("consent", ["consent_plain", "consent_cancel"], {}))
+        self.assertEqual(bar.action_label("consent_plain", {}), "Build")
         s = state(chat(running=True, status="running"), consent=True)
         self.assertEqual(s.mode, "building")
 

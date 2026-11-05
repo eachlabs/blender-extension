@@ -145,15 +145,22 @@ def test_code_check():
         def prop(self, data, name, **kwargs):
             props.append(name)
 
+    from eachlabs.ui import tokens
+
     log = []
     try:
         preferences.get_preferences = lambda context=None: types.SimpleNamespace(
-            chat_code_check=False, api_key="fake-key", base_url="https://api.eachlabs.ai", poll_interval=2.0,
+            chat_code_check=True, api_key="fake-key", base_url="https://api.eachlabs.ai", poll_interval=2.0,
             timeout_minutes=60)
+        panels.draw_status(Layout(log), panel_context)
+        check("code check: not offered, so the sidebar hides it and a saved switch is ignored",
+              "chat_code_check" not in props and "Blender Python before it runs" not in str(log)
+              and preferences.code_check() is False, repr((props, log)))
+        tokens.CODE_CHECK_AVAILABLE = True  # the checks below are of the review itself
         panels.draw_status(Layout(log), panel_context)
     finally:
         preferences.get_preferences = real
-    check("code check: the sidebar shows the switch and its hint", "chat_code_check" in props
+    check("code check: offered, the sidebar shows the switch and its hint", "chat_code_check" in props
           and "Checks the chat's Blender Python before it runs." in " ".join(
               t for kind, t in log if kind == "label"), repr((props, log)))
 
@@ -212,6 +219,7 @@ def test_code_check():
               and '"Cube"' not in names_line and "Code check" in "".join(
                   x["content"] for m in client.chat_llm.messages for x in m if x.get("role") == "tool"),
               repr((tuple(cube.location), names_line)))
+    tokens.CODE_CHECK_AVAILABLE = False
 
 
 def test_confirmations():

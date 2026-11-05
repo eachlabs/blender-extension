@@ -246,10 +246,13 @@ class EachlabsPreferences(bpy.types.AddonPreferences):
         box.prop(self, "chat_total_rounds")
         box.prop(self, "chat_rounds_cap")
         box.prop(self, "show_advanced_tools")
-        box.prop(self, "chat_code_check")
-        from .panels import _wrap
+        from .ui import tokens
 
-        _wrap(box, context, CODE_CHECK_TEXT)
+        if tokens.CODE_CHECK_AVAILABLE:
+            box.prop(self, "chat_code_check")
+            from .panels import _wrap
+
+            _wrap(box, context, CODE_CHECK_TEXT)
         if getattr(self, "chat_code_consent", "UNSET") == "ALLOWED":
             box.operator("eachlabs.ask_consent_again")
         else:

@@ -221,6 +221,12 @@ def scenario_bar():
                   and overlay.FIELD.text == "a street at sunset", placed()[4].mode)
             key("RET")
             yield 0.4
+            check("consent: with Code check not offered, the card has Build and Cancel only",
+                  {"consent_plain", "consent_cancel"} <= set(placed()[1].hits)
+                  and "consent_check" not in placed()[1].hits, str(sorted(placed()[1].hits)))
+            tokens.CODE_CHECK_AVAILABLE = True  # the run below checks the review itself; put back in ``finally``
+            overlay.tag_redraw()
+            yield 0.3
             click(*bar_point("consent_check"))
             yield 0.3
             check("consent: Build with code check stores the consent, turns Code check on and starts the run",
@@ -663,6 +669,7 @@ def scenario_bar():
             yield from looks_flow(client)
     finally:
         mcp_client.check = real_check
+        tokens.CODE_CHECK_AVAILABLE = False
         tokens.FOLD_AFTER = FOLD_AFTER
 
     cube = bpy.data.objects["Cube"]  # undo replaced the datablocks; select it again for the grab

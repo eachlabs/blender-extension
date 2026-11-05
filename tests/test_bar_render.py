@@ -59,8 +59,8 @@ def mockups():
                                     thinking_seconds=18, spinner_phase=0.6),
                        {"stop", "field", "bar"}),
         "15-consent": (bar.BarState(mode="consent", field=field(PROMPT), focused=True, caret_on=False,
-                                    actions=list(bar.CONSENT_ACTIONS)),
-                       {"consent_check", "consent_plain", "consent_cancel", "send", "field", "bar"}),
+                                    actions=["consent_plain", "consent_cancel"]),
+                       {"consent_plain", "consent_cancel", "send", "field", "bar"}),
         "16-code-check": (bar.BarState(mode="building", field=field(PROMPT), stages=checking, round=4, total=20,
                                        code_check=True, status=tokens.CHECKING_TEXT, spinner_phase=0.3),
                           {"stop", "field", "bar"}),
@@ -162,7 +162,7 @@ class MockupStatesTest(unittest.TestCase):
         # Logical heights measured on the approved frames (scale 1), within 2 px.
         expected = {"01-idle": 52, "03-building": 122, "04-done": 164, "05-error": 93,
                     "08-done-undo": 178, "09-retry": 178, "10-multiline": 86, "13-waiting": 148,
-                    "15-consent": 205, "16-code-check": 123, "17-refused": 179}
+                    "15-consent": 167, "16-code-check": 123, "17-refused": 179}
         states = mockups()
         for name, height in expected.items():
             with self.subTest(name):
@@ -398,6 +398,30 @@ class NarrowActionsTest(unittest.TestCase):
         self.assertEqual(bar.action_label("code", {}), "Show code")
         self.assertEqual(bar.action_label("halt", {}), "Stop")
         self.assertEqual(bar.action_label("retry", {}), "Retry")
+
+
+class CodeCheckOffTest(unittest.TestCase):
+    def test_the_consent_card_offers_build_and_shows_code_check_only_when_it_is_offered(self):
+        from unittest import mock
+
+        from eachlabs.ui import bar_state, tooltips
+
+        self.assertFalse(tokens.CODE_CHECK_AVAILABLE)
+        consent = bar_state.from_chat(types.SimpleNamespace(
+            prompt="", stages={}, status="idle", thinking_since=None, round=0, total=20, tools=[], reply="",
+            error="", cost=None, cost_text="", running=False, failed_stage=None, history=[], changed=[],
+            unchanged=False), field(PROMPT), True, 100.0, consent=True)
+        frame = bar.render(consent, 640, 1)
+        self.assertEqual(consent.actions, ["consent_plain", "consent_cancel"])
+        self.assertNotIn("consent_check", frame.hits)
+        self.assertNotIn("Code check", tooltips.text("consent_plain"))
+        with mock.patch.object(tokens, "CODE_CHECK_AVAILABLE", True):
+            offered = bar.BarState(mode="consent", field=field(PROMPT), focused=True,
+                                   actions=list(bar.CONSENT_ACTIONS))
+            frame_on = bar.render(offered, 640, 1)
+            self.assertIn("consent_check", frame_on.hits)
+            self.assertEqual(bar.action_label("consent_plain", {}), "Build without check")
+            self.assertGreater(bar_height(frame_on), bar_height(frame))  # the hint row is back
 
 
 class NoteTest(unittest.TestCase):

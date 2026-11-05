@@ -27,6 +27,8 @@ _PLAIN = ("consent_cancel", "plan_cancel")  # drawn as text, right-aligned on th
 
 
 def action_label(action, stages, undo_stage="", widen="", raise_label="", missing_label=""):
+    if action == "consent_plain" and not T.CODE_CHECK_AVAILABLE:
+        return "Build"
     if action == "widen" and widen:
         return widen
     if action == "plan_raise" and raise_label:
@@ -96,7 +98,7 @@ def _draw_pill(canvas, x, y, w, h, item, hits):
         _text(canvas, label, x + T.PILL_PAD_Y, y + T.PILL_PAD_Y, T.PILL_LINE, "medium", T.PILL_SIZE, T.CANCEL_TEXT)
         return
     rect = skia.RRect.MakeRectXY(skia.Rect.MakeXYWH(x, y, w, h), h / 2, h / 2)
-    if action in T.PRIMARY_ACTIONS:
+    if action in T.PRIMARY_ACTIONS or (action == "consent_plain" and not T.CODE_CHECK_AVAILABLE):
         canvas.drawRRect(rect, _paint(T.PRIMARY_FILL))
     else:
         canvas.drawRRect(rect, _paint(T.SECONDARY_FILL))
@@ -150,11 +152,13 @@ def _actions_row(state, width, meta=""):
 
 
 def _consent_rows(state, width):
-    """The consent card above the input: title, body, the three buttons, the hint."""
-    return [_paragraph_row(T.CONSENT_TITLE, "semibold", T.TITLE_SIZE, T.TITLE_LINE, T.REPLY, width),
+    """The consent card above the input: title, body, the buttons, and the Code check hint when it is offered."""
+    rows = [_paragraph_row(T.CONSENT_TITLE, "semibold", T.TITLE_SIZE, T.TITLE_LINE, T.REPLY, width),
             _paragraph_row(T.CONSENT_BODY, "regular", T.BODY_SIZE, T.BODY_LINE, T.BODY, width),
-            _actions_row(state, width),
-            _paragraph_row(T.CONSENT_HINT, "medium", T.HINT_SIZE, T.HINT_LINE, T.HINT, width)]
+            _actions_row(state, width)]
+    if T.CODE_CHECK_AVAILABLE:
+        rows.append(_paragraph_row(T.CONSENT_HINT, "medium", T.HINT_SIZE, T.HINT_LINE, T.HINT, width))
+    return rows
 
 
 

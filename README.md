@@ -64,7 +64,6 @@ real scenes. Please read this before you agree:
 - A filter refuses the obvious ways out of the scene, such as files, the network, other programs and
   your add-on settings. It catches honest mistakes. It does **not** make the code safe, and it is
   **not a sandbox**.
-- **Code check** adds a second model that reads each step first. It can be wrong too.
 - While a step runs, your API key is taken out of the add-on preferences, and a step that changes the
   add-on's settings stops the run. Code that gets past the filter can still find the key elsewhere.
 - Every stage is one undo step, and you can read all the code the chat ran with **Show code**.
@@ -76,27 +75,12 @@ Before the first run the bar shows a card instead of starting.
 
 | Choice | What happens |
 |---|---|
-| **Build with code check** | Saves your agreement, turns Code check on and starts the run |
-| **Build without check** | Saves your agreement and starts the run with Code check off |
+| **Build** | Saves your agreement and starts the run |
 | **Cancel** | Starts nothing, saves nothing and keeps your prompt |
 
 The agreement is saved in the add-on preferences, so the card shows once. The *Build* button in the
 sidebar (when the bar is not shown) asks the same question. Nothing runs before you agree.
-To be asked again, press **Ask before building again** under Code check in the add-on preferences.
-
-### Code check
-
-- Off by default. Turn it on with the **Code check** box in the Eachlabs tab or in the add-on preferences
-  under *Chat*.
-- It reads every step before it runs, and tries to block a step that reads or changes your files, goes
-  online, or touches anything outside the scene the chat builds. It can be wrong. A blocked step does
-  not run. The chat is told why and writes it again.
-- It is told the name of the chat's collection and the names of the chat's objects. The add-on does not
-  tell it the names of yours.
-- If it cannot decide, it blocks the step.
-- After three blocked steps in a row the run stops, and **Retry stage** is offered. The bar tells you
-  that you can turn Code check off.
-- It adds a few seconds per step and its calls are part of the cost.
+To be asked again, press **Ask before building again** in the add-on preferences under *Chat*.
 
 ### What the chat sees
 
@@ -189,13 +173,12 @@ Every state of the bar offers a next step besides typing, except when Blender wa
 
 | The bar shows | Buttons |
 |---|---|
-| The consent card | Build with code check, Build without check, Cancel |
-| A run in progress | Stop. While Code check holds a step: Show code and Stop |
+| The consent card | Build, Cancel |
+| A run in progress | Stop |
 | Finished | Play as *camera* with its camera list (Pause while it plays), Frame result, Final render (hidden while it renders), Undo stage, Show code, New scene |
 | Finished, but nothing in the scene changed: the bar says so above the reply | Retry, Undo stage, Show code, New scene |
 | A stage failed or the run stopped | Retry stage, Undo stage, Show code, New scene |
 | Stopped by you | Undo stage, Show code, New scene, Keep the scene |
-| Stopped by Code check | Retry stage, Show code, New scene |
 | Stopped because a step changed the add-on's settings | Show code, New scene |
 | A start that was refused, a chat that could not start, or a run that broke off | Retry stage, Show code, and New scene when there is a scene |
 | Online access is off | Open preferences (at *System*, where *Allow Online Access* is), Show code, and New scene when there is a scene |
@@ -242,7 +225,6 @@ In *Preferences > Add-ons > Eachlabs*, under *Chat*:
 | Main objects' detail model | GPT-6 Astra | Final: the model that details the main objects; other objects keep the scene's model. *The scene's model* details every object |
 | Show advanced tools | off | Shows Show code, Final render and New scene on the bar |
 | Total rounds | 15 (5-16) | Most model replies one message may use; lower it to make runs shorter. The run stops and keeps what was built. 16 leaves room for the one extra light round |
-| Code check | off | Reads each step before it runs |
 | Visual check | on | The chat looks at small renders of the scene and fixes what it sees (see below) |
 | Scene review | on | After the build, a separate look at the whole scene from four sides fixes what makes no sense, in about 2 rounds (see below) |
 | Seconds per step | 20 (5-120) | Python code that runs longer is stopped and reported as a time-out. One long Blender operation, such as a heavy modifier, runs to its end, and Blender waits for it |

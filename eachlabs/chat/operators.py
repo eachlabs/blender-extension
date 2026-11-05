@@ -41,14 +41,15 @@ class EACHLABS_OT_chat_send(bpy.types.Operator):
         layout.label(text=tokens.CONSENT_TITLE)
         for line in tokens.CONSENT_BODY.split("\n"):
             _wrap(layout, context, line)
-        layout.prop(self, "code_check")
-        _wrap(layout, context, tokens.CONSENT_HINT)
+        if tokens.CODE_CHECK_AVAILABLE:
+            layout.prop(self, "code_check")
+            _wrap(layout, context, tokens.CONSENT_HINT)
 
     def execute(self, context):
         if chat_run.STATE.running:
             return {"CANCELLED"}  # Enter during a run sends nothing.
         if self.asked:
-            preferences.allow_code(context, self.code_check)
+            preferences.allow_code(context, self.code_check and tokens.CODE_CHECK_AVAILABLE)
         prompt = self.prompt if self.prompt or not self.use_last else chat_run.STATE.prompt
         if not chat_run.start(context, prompt):
             if chat_run.STATE.error:  # no error: the bar's consent card opened instead

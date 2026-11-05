@@ -230,7 +230,12 @@ def advanced_tools(context=None):
 
 
 def code_check(context=None):
-    """True when the person turned Code check on; off when preferences are unavailable."""
+    """True when Code check is offered and the person turned it on; off when preferences are unavailable. While
+    it is not offered (``tokens.CODE_CHECK_AVAILABLE``), a setting saved earlier is ignored."""
+    from ..ui import tokens
+
+    if not tokens.CODE_CHECK_AVAILABLE:
+        return False
     prefs = live.preferences.get_preferences(context)
     return bool(getattr(prefs, "chat_code_check", False)) if prefs is not None else False
 
