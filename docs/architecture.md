@@ -826,6 +826,9 @@ in a `POST_PIXEL` handler with premultiplied alpha. It is re-rasterized only whe
 - **Never use system font matching.** It can crash `skia-python` on macOS.
 - Without Skia the overlay is not registered, and the sidebar shows a plain prompt instead.
 - Any error while drawing or handling input is printed and the event passes through.
+- **The done card folds to one line** `FOLD_AFTER` (4 s) after the run ends or the mouse leaves the bar, and
+  opens while the mouse is on it. `bar_state.foldable` keeps every card that waits for a choice open;
+  `viewport/fold.py` notes the times and redraws once when the card is due to fold.
 
 ### Highlights
 

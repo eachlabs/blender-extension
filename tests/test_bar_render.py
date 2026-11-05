@@ -419,6 +419,33 @@ class NoteTest(unittest.TestCase):
         self.assertGreater(bar_height(frame), bar_height(plain))
 
 
+class FoldedTest(unittest.TestCase):
+    def done(self, **kw):
+        stages = {s: "done" for s in ("layout", "materials", "light", "camera", "check")}
+        values = dict(mode="done", field=field(), stages=stages, reply=REPLY, cost_text="34 ROUNDS · 6 MIN · $0.38",
+                      actions=["play", "frame", "new"])
+        values.update(kw)
+        return bar.BarState(**values)
+
+    def test_a_folded_card_is_one_line_with_no_buttons(self):
+        open_card = bar.render(self.done(), 640, 1)
+        folded = bar.render(self.done(folded=True), 640, 1)
+        self.assertLess(bar_height(folded), bar_height(open_card) - 60)
+        for name in ("play", "frame", "new"):
+            self.assertIn(name, open_card.hits)
+            self.assertNotIn(name, folded.hits)
+        self.assertIn("field", folded.hits)  # a follow-up can still be typed
+        self.assertIn("bar", folded.hits)
+
+    def test_the_folded_line_says_done_and_the_cost(self):
+        from eachlabs.ui import status_rows
+
+        self.assertEqual(status_rows._folded_line(self.done()), "DONE · 34 ROUNDS · 6 MIN · $0.38")
+        self.assertEqual(status_rows._folded_line(self.done(actions=["play", "retry"])),
+                         "DONE · 34 ROUNDS · 6 MIN · $0.38 · A STAGE PARTLY DONE")
+        self.assertEqual(status_rows._folded_line(self.done(cost_text="")), "DONE")
+
+
 LONG_PROMPT = ("I want a mountain with a snow peak, a forest around it, a small village in the forest and a larger "
                "village with a stone fence, wooden gates, a marketplace, a church and a town hall with a big clock.")
 

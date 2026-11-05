@@ -59,7 +59,10 @@ UI = {"focused": False, "blink_from": 0.0, "mcp_checked": False, "key_seen": Non
       "asked_open": False,  # the bar shows the whole prompt of the run, not one line
       "hover": None,  # (region pointer, hit id) of the control under the mouse
       "tip": False,  # its tooltip shows (after TIP_DELAY)
-      "tip_quiet": None}  # (region pointer, hit id) a click hid the tooltip of, until another control is hovered
+      "tip_quiet": None,  # (region pointer, hit id) a click hid the tooltip of, until another control is hovered
+      "over_bar": False,  # the mouse is on the bar (any part of it), see viewport/fold.py
+      "done_since": None,  # when the done card that may fold first showed (time.monotonic)
+      "left_at": None}  # when the mouse last left the bar
 _handle = None
 _keymaps = []  # (keymap, item)
 _placed = {}  # region pointer -> (origin, frame, width, scale, state) as last drawn
@@ -281,6 +284,7 @@ def _on_load(_dummy):
     _cache.clear()
     UI["focused"] = UI["pressed"] = UI["consent"] = UI["quality_menu"] = UI["camera_menu"] = False
     hover.stop()
+    fold.stop()
 
 
 # -- registration ---------------------------------------------------------------------------------
@@ -327,6 +331,7 @@ def unregister():
     if bpy.app.timers.is_registered(_tick):
         bpy.app.timers.unregister(_tick)
     hover.stop()
+    fold.stop()
     for km, item in _keymaps:
         km.keymap_items.remove(item)
     _keymaps.clear()
@@ -357,4 +362,4 @@ from .viewport.actions import _act, _stop, blur, consent, focus, open_consent, r
 
 
 # Imported last: these modules read this one's state through it.
-from .viewport import hover  # noqa: E402
+from .viewport import fold, hover  # noqa: E402

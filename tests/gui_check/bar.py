@@ -298,6 +298,17 @@ def scenario_bar():
                   startup is not None and not startup.hide_get() and not placed()[4].note
                   and "cube" not in placed()[1].hits, repr(placed()[4].note))
             screenshot("bar-05-done.png")
+            move(*viewport_centre())
+            yield tokens.FOLD_AFTER + 0.6
+            check("bar: 4 s after the run, with the mouse off the bar, the done card folds to one line",
+                  placed()[4].folded and not {"play", "frame", "undo"} & set(placed()[1].hits)
+                  and "field" in placed()[1].hits, "%s %s" % (placed()[4].folded, sorted(placed()[1].hits)))
+            screenshot("bar-05b-folded.png")
+            move(*bar_point("bar"))
+            yield 0.4
+            check("bar: resting the mouse on the folded bar opens the whole card again",
+                  not placed()[4].folded and {"play", "frame", "undo"} <= set(placed()[1].hits),
+                  "%s %s" % (placed()[4].folded, sorted(placed()[1].hits)))
             reveal_cube()  # the script's, outside the undo stack: the checks below use the Cube as the person's
             windows = len(bpy.context.window_manager.windows)
             click(*bar_point("code"))

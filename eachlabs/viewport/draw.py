@@ -55,6 +55,9 @@ def current_state(now=None):
                                 cameras=cameras, camera_menu=live.overlay.UI["camera_menu"], playing=playing,
                                 thing=thing)
     state.thinking_seconds = float(int(state.thinking_seconds))
+    from . import fold  # it calls this module's redraw
+
+    state.folded = fold.folded(state, now)
     return state
 
 

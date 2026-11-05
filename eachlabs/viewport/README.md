@@ -11,6 +11,7 @@ image itself comes from `ui/`.
 | `draw.py` | Drawing the bar in the 3D view: its scale, insets around side panels, the image as a GPU texture |
 | `input.py` | Which region a press lands in, clicks, drags and double clicks in the field, and typing |
 | `hover.py` | Tooltips: the control under the mouse, the wait before its tooltip shows, and the card in the 3D view |
+| `fold.py` | Folding the done card to one line: when the run ended, when the mouse left the bar, one redraw when due |
 | `actions.py` | What the field and the buttons do: focus, submit, the consent card, each action button |
 | `live.py` | Late access to `overlay.py`'s module state |
 
