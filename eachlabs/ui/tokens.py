@@ -191,7 +191,7 @@ CANCEL_TEXT = WHITE + (0.70,)
 # (mode, name, hint); the menu lists them in this order. The plan card shows each run's price.
 QUALITIES = (
     ("PROTOTYPE", "Prototype", "Quick drafts · fewer rounds, GPT-6.1 Terra · about $1 a room"),
-    ("ADVANCED", "Final", "Full detail · more rounds, detail and reference pictures"),
+    ("ADVANCED", "Final (experimental)", "Full detail · more rounds, detail and reference pictures"),
 )
 FINAL_RENDERING = "Final render: rendering in its own window with Cycles. Esc there stops it."
 FINAL_SAVED = "Final render saved in %s: %s, next to the .blend file."

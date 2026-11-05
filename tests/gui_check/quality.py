@@ -39,7 +39,7 @@ def quality_picker():
     yield 0.4
     check("picker: choosing Final sets the quality preference and closes the menu",
           prefs.chat_quality == "ADVANCED" and not overlay.UI["quality_menu"]
-          and placed()[4].quality_label == "Final", "%r %r" % (prefs.chat_quality, placed()[4].quality_label))
+          and placed()[4].quality_label == "Final (experimental)", "%r %r" % (prefs.chat_quality, placed()[4].quality_label))
     screenshot("bar-05-quality-advanced.png")
     prefs.chat_quality = preferences.DEFAULT_QUALITY
     key("ESC")

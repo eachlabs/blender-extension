@@ -214,7 +214,7 @@ closes the menu. It is dimmed while a run is going. In a narrow bar it sits on i
 | Mode | What a run does |
 |---|---|
 | Prototype (default) | Quick drafts with a plainer look: GPT-6.1 Terra answers every stage, materials and light get 1 round each, main objects 1 detail round, no reference pictures and no generated textures (free textures and node materials instead), and the concept picture comes from Z-Image Turbo. Layout, camera, check, the visual check and the fixes keep their rounds, so nothing is left broken. At most 40 rounds |
-| Final | Full detail: the rounds, the models, the detail and the reference pictures set in the preferences |
+| Final (experimental) | Full detail: the rounds, the models, the detail and the reference pictures set in the preferences. Experimental: its results vary more than Prototype's, and it can leave an object misplaced or broken |
 
 The plan card shows a run's price before it builds.
 

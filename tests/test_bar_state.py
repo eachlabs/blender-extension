@@ -396,7 +396,7 @@ class PlacementTest(unittest.TestCase):
 
 class QualityPickerTest(unittest.TestCase):
     def test_the_pill_names_the_mode_and_an_unknown_one_reads_as_prototype(self):
-        names = {"PROTOTYPE": "Prototype", "ADVANCED": "Final", "FAST": "Prototype"}
+        names = {"PROTOTYPE": "Prototype", "ADVANCED": "Final (experimental)", "FAST": "Prototype"}
         for mode, name in names.items():
             with self.subTest(mode):
                 self.assertEqual(bar_state.quality_name(mode), name)
@@ -405,7 +405,7 @@ class QualityPickerTest(unittest.TestCase):
 
     def test_menu_lists_both_modes_with_hints_and_marks_the_current_one(self):
         items = bar_state.quality_menu("ADVANCED")
-        self.assertEqual([(n, c) for n, _h, c in items], [("Prototype", False), ("Final", True)])
+        self.assertEqual([(n, c) for n, _h, c in items], [("Prototype", False), ("Final (experimental)", True)])
         self.assertEqual([h for _n, h, _c in items], [
             "Quick drafts · fewer rounds, GPT-6.1 Terra · about $1 a room", "Full detail · more rounds, detail and reference pictures"])
         self.assertEqual([c for _n, _h, c in bar_state.quality_menu("FAST")], [True, False])
