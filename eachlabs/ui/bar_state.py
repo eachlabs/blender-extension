@@ -238,12 +238,12 @@ def foldable(s):
             and not any(a in s.actions for a in ("widen", "missing")))
 
 
-def folded(done_since, left_at, over_bar, now):
-    """True once ``FOLD_AFTER`` seconds passed since the run ended and since the mouse left the bar; never while
-    the mouse is on it. ``done_since``: when the card became foldable; ``left_at``: when the mouse last left."""
+def folded(done_since, over_bar, now):
+    """True once ``FOLD_AFTER`` seconds passed since the card first showed, while the mouse is off the bar. After
+    that first wait the mouse opens and folds it at once. ``done_since``: when the card became foldable."""
     if done_since is None or over_bar:
         return False
-    return now - max(done_since, left_at or done_since) >= T.FOLD_AFTER
+    return now - done_since >= T.FOLD_AFTER
 
 
 ADVANCED_ACTIONS = ("code", "final", "new")  # shown only with "Show advanced tools" on

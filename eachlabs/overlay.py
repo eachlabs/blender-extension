@@ -61,8 +61,7 @@ UI = {"focused": False, "blink_from": 0.0, "mcp_checked": False, "key_seen": Non
       "tip": False,  # its tooltip shows (after TIP_DELAY)
       "tip_quiet": None,  # (region pointer, hit id) a click hid the tooltip of, until another control is hovered
       "over_bar": False,  # the mouse is on the bar (any part of it), see viewport/fold.py
-      "done_since": None,  # when the done card that may fold first showed (time.monotonic)
-      "left_at": None}  # when the mouse last left the bar
+      "done_since": None}  # when the done card that may fold first showed (time.monotonic)
 _handle = None
 _keymaps = []  # (keymap, item)
 _placed = {}  # region pointer -> (origin, frame, width, scale, state) as last drawn

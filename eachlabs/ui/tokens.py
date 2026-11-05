@@ -216,7 +216,7 @@ MENU_CHOSEN_STROKE = ORANGE + (0.50,)
 MENU_RADIUS = 10
 
 # The done card folds to one line so the scene shows; the mouse on the bar opens it again.
-FOLD_AFTER = 4.0  # seconds after a run ends, or after the mouse leaves the bar
+FOLD_AFTER = 4.0  # seconds after the card first shows; later the mouse opens and folds it at once
 FOLDED_PARTLY = "A stage partly done"  # added to the folded line when Retry stage waits under it
 
 # Tooltips: a card over the control the mouse rests on (texts in ``tooltips.py``).

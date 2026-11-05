@@ -586,12 +586,11 @@ class FoldTest(unittest.TestCase):
                   chat(error="API key was rejected (HTTP 401).")):
             self.assertFalse(bar_state.foldable(state(c)))
 
-    def test_it_folds_four_seconds_after_the_run_or_after_the_mouse_leaves(self):
+    def test_it_first_folds_four_seconds_after_the_card_shows_then_follows_the_mouse_at_once(self):
         after = tokens.FOLD_AFTER
-        self.assertFalse(bar_state.folded(None, None, False, 1000.0))
-        self.assertFalse(bar_state.folded(100.0, None, False, 100.0 + after - 0.1))
-        self.assertTrue(bar_state.folded(100.0, None, False, 100.0 + after))
-        self.assertFalse(bar_state.folded(100.0, None, True, 200.0))  # the mouse is on the bar: open
-        self.assertFalse(bar_state.folded(100.0, 150.0, False, 150.0 + after - 0.1))  # it just left
-        self.assertTrue(bar_state.folded(100.0, 150.0, False, 150.0 + after))
-        self.assertTrue(bar_state.folded(100.0, 90.0, False, 100.0 + after))  # left before the run ended
+        self.assertFalse(bar_state.folded(None, False, 1000.0))
+        self.assertFalse(bar_state.folded(100.0, False, 100.0 + after - 0.1))
+        self.assertTrue(bar_state.folded(100.0, False, 100.0 + after))
+        self.assertFalse(bar_state.folded(100.0, True, 200.0))  # the mouse is on the bar: open
+        self.assertTrue(bar_state.folded(100.0, False, 200.0))  # it left: folded at once, no new wait
+        self.assertFalse(bar_state.folded(100.0, False, 101.0))  # left within the first 4 s: still open
