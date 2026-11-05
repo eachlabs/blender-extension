@@ -374,6 +374,9 @@ targeted edit or a retry. The plan's estimate counts its 2 rounds. Turn it off u
 - The bar shows each stage, the current step and the round. At the end it shows the reply,
   the rounds used, the time the run took and the cost. The time leaves out how long the plan waited for you
   to press Build.
+- Longer prompts take longer to build. The chat builds and checks every object you ask for, so each one adds
+  time. Changes to an existing scene also take longer as the scene grows. For example, in Prototype a room
+  with ten objects took about 6 minutes, and the same room with a full bookshelf took about 8.
 - A prompt holds up to 2000 characters; a longer paste is cut.
 - When the layout stage ends, the 3D view moves once to show the new buildings.
 - When the light stage ends, the 3D views in that window that use *Solid* shading switch to
