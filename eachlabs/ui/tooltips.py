@@ -50,6 +50,8 @@ CAMERA_ITEM = "Play through this camera."
 
 def text(hit_id):
     """The tooltip of a control, or ``""`` for the bar itself and anything unknown."""
+    if hit_id == "consent_plain" and not T.CODE_CHECK_AVAILABLE:
+        return "Let the chat run the Blender code it writes. Every step is one undo, and you can see the code it ran."
     if hit_id in TEXTS:
         return TEXTS[hit_id]
     if hit_id in T.PLAN_HITS:

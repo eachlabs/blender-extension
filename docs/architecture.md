@@ -423,7 +423,7 @@ consent (start) -> [Code check] -> rule filter -> code runner -> summary -> reda
 |---|---|
 | **Consent** | `chat_code_consent` is `UNSET` or `ALLOWED`. `chat_run.start()` refuses to start while it is `UNSET` and opens the consent card. Send, Retry stage and the sidebar all call `start()`. |
 | **Rule filter** (`code_check.check`) | Reads the step as source without running it. Refuses with the name of the rule and the line, so the model can rewrite the step. A refused step does not run. |
-| **Code check** (`code_review.review`) | Off by default. One extra model call reads the step before it runs. See below. |
+| **Code check** (`code_review.review`) | **Turned off and hidden** (`tokens.CODE_CHECK_AVAILABLE`): it blocked ordinary build steps after the layout. One extra model call reads the step before it runs. See below. |
 | **Code runner** (`code_runner.run`) | Runs the step in a fresh namespace under the step time limit, on Blender's main thread only. Empties the API key in the preferences while the step runs and checks the add-on's settings after it. |
 | **Redaction** (`code_check.redact`) | Replaces exact copies of the API key in every result and in the saved code. |
 

@@ -174,6 +174,10 @@ NOTHING_CHANGED = "Nothing in the scene changed. Try again or reword the request
 SETTINGS_CHANGED = "A step changed the add-on's settings. They were put back and the run was stopped."
 CODE_ICON = "</>"
 
+# Code check (a second model reading each step before it runs) is off and hidden: it blocked ordinary build steps
+# after the layout. True brings back its preference, the consent card's choice and the badge.
+CODE_CHECK_AVAILABLE = False
+
 # Consent card, shown on the first send
 CONSENT_TITLE = "The chat builds your scene by writing Blender Python"
 CONSENT_BODY = ("The code runs right here in Blender. It is not a sandbox.\n"

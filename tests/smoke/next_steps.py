@@ -38,8 +38,20 @@ def test_next_steps():
         preferences=types.SimpleNamespace(addons={}, system=types.SimpleNamespace(ui_scale=1.0)), region=None)
     prefs_cls.draw(fake_self, panel_context)
     labels = [t for kind, t in log if kind == "label"]
+    check("preferences: Code check is not offered, so neither its switch nor its text shows",
+          "Code check" not in " ".join(labels) and "chat_code_check" not in str(log), repr(labels))
+    from eachlabs.ui import tokens
+
+    log = []
+    fake_self = types.SimpleNamespace(layout=_FakeLayout(log), api_key="k", show_advanced=False)
+    tokens.CODE_CHECK_AVAILABLE = True
+    try:
+        prefs_cls.draw(fake_self, panel_context)
+    finally:
+        tokens.CODE_CHECK_AVAILABLE = False
+    labels = [t for kind, t in log if kind == "label"]
     shown = " ".join(labels)
-    check("preferences: Code check's text shows wrapped under the switch",
+    check("preferences: offered again, Code check's text shows wrapped under the switch",
           preferences.CODE_CHECK_TEXT in shown and not any(preferences.CODE_CHECK_TEXT == t for t in labels),
           repr(labels))
     for consent, button in (("UNSET", False), ("ALLOWED", True)):
