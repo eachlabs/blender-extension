@@ -39,7 +39,7 @@ DEFAULT_QUALITY = "PROTOTYPE"  # quick drafts; Final is for the version you keep
 QUALITIES = (("PROTOTYPE", "Prototype", "Quick drafts with a plainer look: GPT-6.1 Terra for every stage (unless "
                                         "you set your own model), fewer material and light rounds, a quick concept "
                                         "picture, no generated textures or reference pictures"),
-             ("ADVANCED", "Final", "Full detail: the rounds, models, detail and reference pictures set below"))
+             ("ADVANCED", "Final (experimental)", "Full detail: the rounds, models, detail and reference pictures set below"))
 ROUNDS_CAP = 90  # most model replies a run may use, the detail stage included
 
 CODE_CHECK_TEXT = ("Reads every piece of Blender Python the chat writes before it runs, and tries to block any "

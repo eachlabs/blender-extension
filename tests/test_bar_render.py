@@ -530,7 +530,7 @@ class RobustnessTest(unittest.TestCase):
 
 class QualityPickerRenderTest(unittest.TestCase):
     MENU = [("Prototype", "Quick drafts · fewer rounds, GPT-6.1 Terra · about $1 a room", True),
-            ("Final", "Full detail · more rounds, detail and reference pictures", False)]
+            ("Final (experimental)", "Full detail · more rounds, detail and reference pictures", False)]
 
     def check_controls(self, frame):
         controls = {k: v for k, v in frame.hits.items() if k != "bar"}
