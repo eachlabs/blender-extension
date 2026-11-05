@@ -26,6 +26,7 @@ review_flow = optional("review", "review_flow")
 visual_flow = optional("review", "visual_flow")
 tool_presses = optional("tools", "tool_presses")
 tooltip_checks = optional("tooltips", "tooltip_checks")
+FOLD_AFTER = tokens.FOLD_AFTER  # the scenario turns folding off after its fold checks and puts this back
 
 
 def scenario_bar():
@@ -298,6 +299,24 @@ def scenario_bar():
                   startup is not None and not startup.hide_get() and not placed()[4].note
                   and "cube" not in placed()[1].hits, repr(placed()[4].note))
             screenshot("bar-05-done.png")
+            move(*viewport_centre())
+            yield tokens.FOLD_AFTER + 0.6
+            check("bar: 4 s after the run, with the mouse off the bar, the done card folds to one line",
+                  placed()[4].folded and not {"play", "frame", "undo"} & set(placed()[1].hits)
+                  and "field" in placed()[1].hits, "%s %s" % (placed()[4].folded, sorted(placed()[1].hits)))
+            screenshot("bar-05b-folded.png")
+            move(*bar_point("bar"))
+            yield 0.4
+            check("bar: resting the mouse on the folded bar opens the whole card again",
+                  not placed()[4].folded and {"play", "frame", "undo"} <= set(placed()[1].hits),
+                  "%s %s" % (placed()[4].folded, sorted(placed()[1].hits)))
+            move(*viewport_centre())
+            yield 0.3
+            check("bar: after the first fold, moving the mouse off the bar folds the card at once",
+                  placed()[4].folded, "%s %s" % (placed()[4].folded, sorted(placed()[1].hits)))
+            tokens.FOLD_AFTER = 1e9  # the checks below click the open card's buttons; put back in ``finally``
+            move(*bar_point("bar"))
+            yield 0.3
             reveal_cube()  # the script's, outside the undo stack: the checks below use the Cube as the person's
             windows = len(bpy.context.window_manager.windows)
             click(*bar_point("code"))
@@ -644,6 +663,7 @@ def scenario_bar():
             yield from looks_flow(client)
     finally:
         mcp_client.check = real_check
+        tokens.FOLD_AFTER = FOLD_AFTER
 
     cube = bpy.data.objects["Cube"]  # undo replaced the datablocks; select it again for the grab
     window().scene = cube.users_scene[0]  # New scene above moved the window to a new, empty scene

@@ -564,3 +564,33 @@ class FreeAssetsNote(unittest.TestCase):
         self.assertEqual(bar_state.free_note(["Rogland Clear Night", "Oak Wood Planks"]),
                          "Free: Rogland Clear Night, Oak Wood Planks (Poly Haven, CC0)")
         self.assertIn("+2 more", bar_state.free_note(list("abcdef")))
+
+
+class FoldTest(unittest.TestCase):
+    def done(self, **kw):
+        return state(chat(status="done", reply="A room.", cost_text="34 ROUNDS · 6 MIN · $0.38", **kw))
+
+    def test_a_plain_done_card_may_fold(self):
+        self.assertTrue(bar_state.foldable(self.done()))
+        self.assertTrue(bar_state.foldable(self.done(failed_stage="detail")))  # Retry stage shows on the line
+
+    def test_a_card_with_a_choice_or_no_run_never_folds(self):
+        self.assertFalse(bar_state.foldable(self.done(unchanged=True)))  # nothing changed: Retry is the answer
+        self.assertFalse(bar_state.foldable(self.done(blocked=["Wall"])))  # "Also let it change Wall"
+        self.assertFalse(bar_state.foldable(self.done(missing=["lamp"])))  # "Build the missing things"
+        menu = self.done()
+        menu.camera_menu = [("Camera", "", True)]
+        self.assertFalse(bar_state.foldable(menu))
+        for c in (chat(), chat(running=True, status="running", stages={"layout": "active"}),
+                  chat(status="stopped", failed_stage="light", stages={"light": "failed"}),
+                  chat(error="API key was rejected (HTTP 401).")):
+            self.assertFalse(bar_state.foldable(state(c)))
+
+    def test_it_first_folds_four_seconds_after_the_card_shows_then_follows_the_mouse_at_once(self):
+        after = tokens.FOLD_AFTER
+        self.assertFalse(bar_state.folded(None, False, 1000.0))
+        self.assertFalse(bar_state.folded(100.0, False, 100.0 + after - 0.1))
+        self.assertTrue(bar_state.folded(100.0, False, 100.0 + after))
+        self.assertFalse(bar_state.folded(100.0, True, 200.0))  # the mouse is on the bar: open
+        self.assertTrue(bar_state.folded(100.0, False, 200.0))  # it left: folded at once, no new wait
+        self.assertFalse(bar_state.folded(100.0, False, 101.0))  # left within the first 4 s: still open
