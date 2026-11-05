@@ -13,6 +13,9 @@ def track(region, name):
     """The mouse is over control ``name`` of the bar in ``region`` (``None``: over no control). A tooltip that was
     showing goes at once; the new one shows after ``TIP_DELAY``. Redraws only when a shown tooltip goes."""
     ui = live.overlay.UI
+    from . import fold  # it imports draw, which imports this module
+
+    fold.over(region is not None and name is not None)
     key = (region.as_pointer(), name) if region is not None and name and tooltips.text(name) else None
     if key == ui["hover"]:
         return
@@ -67,6 +70,8 @@ def left(region, highlighted):
     if ui["focused"] or ui["pressed"]:  # the input operator tracks the mouse; a held press is no leaving
         return
     if not highlighted and ui["hover"] is not None and ui["hover"][0] == region.as_pointer():
+        track(None, None)
+    elif not highlighted and ui["over_bar"]:  # left from the bar's body, which has no tooltip
         track(None, None)
 
 

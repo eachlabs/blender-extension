@@ -361,6 +361,10 @@ targeted edit or a retry. The plan's estimate counts its 2 rounds. Turn it off u
   with ten objects took about 6 minutes, and the same room with a full bookshelf took about 8.
 - A prompt holds up to 2000 characters; a longer paste is cut.
 - When the layout stage ends, the 3D view moves once to show the new buildings.
+- Four seconds after a run ends, the reply folds to one line (`DONE · 34 ROUNDS · 6 MIN · $0.38`), so the scene
+  is in full view. After that, resting the mouse on the bar opens the reply and its buttons at once, and moving
+  it away folds them at once. It never folds while the bar waits for a choice, such as Retry after a run that
+  changed nothing.
 - When the light stage ends, the 3D views in that window that use *Solid* shading switch to
   *Material Preview*, so glowing lamps and lights show. *Rendered* and other shading stay as they are.
 - **Undo stage** shows only while the chat's last stage is the active step in *Edit > Undo History*.

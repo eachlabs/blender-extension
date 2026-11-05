@@ -212,8 +212,21 @@ def _camera_menu_rows(state, width):
 
 
 
+def _folded_line(state):
+    """The folded done card's one line: ``DONE · 34 ROUNDS · 6 MIN · $0.38``, and what waits under it."""
+    parts = ["Done"] + ([state.cost_text] if state.cost_text else [])
+    if "retry" in state.actions:
+        parts.append(T.FOLDED_PARTLY)
+    return " · ".join(parts).upper()
+
+
 def _status_rows(state, width):
     """The rows of the bar's state: stage chips, status or reply, error, actions; the hint row on top."""
+    if state.mode == "done" and state.folded:
+        rows = [_paragraph_row(_folded_line(state), "mono", T.META_SIZE, T.META_LINE, T.META, width)]
+        if state.focused and _visual_lines(state, width) > 1:
+            rows.insert(0, _hint_row(width))
+        return rows
     rows = []
     if state.stages and state.mode in _RUNNING + ("done", "stopped", "error"):
         rows.append(_chips_row(state, width))

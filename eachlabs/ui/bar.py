@@ -95,6 +95,7 @@ class BarState:
     play_camera: str = ""  # the camera Play looks through ("Play as Camera"); empty: plain Play, no camera menu
     playing: bool = False  # the animation plays: the Play button reads Pause
     camera_menu: list = dataclasses.field(default_factory=list)  # (name, hint, chosen) per camera while it is open
+    folded: bool = False  # the done card shows one line (Done and the cost); the mouse on the bar opens it
 
 
 @dataclasses.dataclass

@@ -231,6 +231,21 @@ def _play(s, cameras, menu_open, playing):
         s.camera_menu = list(cameras)
 
 
+def foldable(s):
+    """True for a done card that may fold to one line: no choice waits on it. A run that changed nothing, an
+    edit kept from some objects, planned things not built or an open menu keep the whole card."""
+    return (s.mode == "done" and not s.error and not s.camera_menu and not s.quality_menu
+            and not any(a in s.actions for a in ("widen", "missing")))
+
+
+def folded(done_since, over_bar, now):
+    """True once ``FOLD_AFTER`` seconds passed since the card first showed, while the mouse is off the bar. After
+    that first wait the mouse opens and folds it at once. ``done_since``: when the card became foldable."""
+    if done_since is None or over_bar:
+        return False
+    return now - done_since >= T.FOLD_AFTER
+
+
 ADVANCED_ACTIONS = ("code", "final", "new")  # shown only with "Show advanced tools" on
 
 

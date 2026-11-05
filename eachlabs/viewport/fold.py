@@ -1,0 +1,41 @@
+"""Folding the done card: when it first showed, whether the mouse is on the bar, and one redraw when the first fold
+is due. The rule is ``bar_state.folded``; the folded line is drawn by ``ui/status_rows.py``."""
+
+import bpy
+
+from . import draw, live
+from ..ui import bar_state, tokens as T
+
+
+def over(on):
+    """The mouse is on the bar (``on``) or off it; the card opens or folds at the next draw."""
+    ui = live.overlay.UI
+    if on != ui["over_bar"]:
+        ui["over_bar"] = on
+        draw.tag_redraw()
+
+
+def folded(state, now):
+    """True when ``state``'s done card shows as one line now. Notes when a foldable card first shows."""
+    ui = live.overlay.UI
+    if not bar_state.foldable(state):
+        ui["done_since"] = None
+        return False
+    if ui["done_since"] is None:
+        ui["done_since"] = now
+        if bpy.app.timers.is_registered(_due):
+            bpy.app.timers.unregister(_due)
+        bpy.app.timers.register(_due, first_interval=T.FOLD_AFTER + 0.05)
+    return bar_state.folded(ui["done_since"], ui["over_bar"], now)
+
+
+def _due():
+    draw.tag_redraw()
+    return None
+
+
+def stop():
+    if bpy.app.timers.is_registered(_due):
+        bpy.app.timers.unregister(_due)
+    ui = live.overlay.UI
+    ui["over_bar"], ui["done_since"] = False, None
