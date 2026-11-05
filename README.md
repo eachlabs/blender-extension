@@ -374,6 +374,9 @@ targeted edit or a retry. The plan's estimate counts its 2 rounds. Turn it off u
 - The bar shows each stage, the current step and the round. At the end it shows the reply,
   the rounds used, the time the run took and the cost. The time leaves out how long the plan waited for you
   to press Build.
+- Build time grows with the prompt. Each thing it lists gets its own rounds, and an earlier scene or a
+  selection adds to what each step reads. In Prototype, a room with ten things took about 6 minutes; the same
+  room with a full bookshelf added took about 8.
 - A prompt holds up to 2000 characters; a longer paste is cut.
 - When the layout stage ends, the 3D view moves once to show the new buildings.
 - When the light stage ends, the 3D views in that window that use *Solid* shading switch to
