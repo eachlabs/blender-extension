@@ -18,9 +18,9 @@ _ACTION_LABELS = {"play": "Play", "frame": "Frame result", "keep": "Keep the sce
                   "consent_cancel": "Cancel", "plan_build": "Build", "plan_cancel": "Cancel",
                   "missing": "Build the missing things", "plan_limit": "Build within my limit",
                   "final": "Final render", "video_stop": "Stop video", "video_retry": "Retry video",
-                  "video_file": "Show file"}
+                  "video_open": "Open Sequencer", "video_file": "Show file"}
 _ACTION_ICONS = {"play", "retry", "frame", "undo", "code"}
-_VIDEO_ICONS = {"video_stop": "stop", "video_retry": "retry", "video_file": "open_file"}
+_VIDEO_ICONS = {"video_stop": "stop", "video_retry": "retry", "video_open": "play", "video_file": "open_file"}
 CONSENT_ACTIONS = ("consent_check", "consent_plain", "consent_cancel")
 PLAN_ACTIONS = ("plan_build", "plan_cancel")
 BUDGET_ACTIONS = ("plan_limit", "plan_raise", "plan_cancel")  # a plan that needs more rounds than the limit

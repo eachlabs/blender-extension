@@ -141,5 +141,16 @@ class FollowTest(unittest.TestCase):
         self.assertEqual(c.video_progress, 48)  # 45 of 93 pictures
 
 
+class StopTest(unittest.TestCase):
+    def test_it_stops_at_the_strip_end_or_the_scene_end_whichever_comes_first(self):
+        self.assertEqual(video_track.stop_frame(strip_end=46, frame_end=129), 45)
+        self.assertEqual(video_track.stop_frame(strip_end=121, frame_end=100), 100)  # a held clip past the range
+
+    def test_it_stops_at_the_end_or_on_a_wrap(self):
+        self.assertFalse(video_track.ends(50, 49, 100))
+        self.assertTrue(video_track.ends(100, 99, 100))
+        self.assertTrue(video_track.ends(1, 99, 100))  # wrapped to the start
+
+
 if __name__ == "__main__":
     unittest.main()

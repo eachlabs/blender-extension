@@ -44,6 +44,8 @@ TEXTS = {
     "video_stop": "Stop making the video. It asks first, since work already sent to each::labs may still be billed.",
     "video_retry": "Make the video again with the same settings: the camera move is recorded again and paid again. "
                    "It shows the price first.",
+    "video_open": "Open a window with the video above the scene seen through its camera, playing together from "
+                  "the video's first frame.",
     "video_file": "Show the video's MP4 file in Finder or Explorer.",
 }
 PLAN_ITEM = "Click to move this object between a generated 3D model and code. Nothing is paid for before Build."

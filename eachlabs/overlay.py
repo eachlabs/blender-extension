@@ -46,7 +46,7 @@ FOCUS_KEY = dict(type="SPACE", value="PRESS", shift=True, alt=True)  # unbound i
 CLICK_KEY = dict(type="LEFTMOUSE", value="PRESS", any=True)
 _ACTIONS = {"retry": "chat_retry_stage", "undo": "chat_undo_stage", "frame": "chat_frame_result", "play": "chat_play",
             "prefs": "open_preferences", "network": "open_preferences", "new": "chat_new_scene",
-            "code": "chat_show_code", "final": "chat_final_render", "video_stop": "chat_video_stop", "video_retry": "chat_video_retry",
+            "code": "chat_show_code", "final": "chat_final_render", "video_stop": "chat_video_stop", "video_retry": "chat_video_retry", "video_open": "chat_video_open",
             "video_file": "chat_video_file"}
 _ACTION_ARGS = {"network": {"section": "SYSTEM"}}  # System holds Network > Allow Online Access
 

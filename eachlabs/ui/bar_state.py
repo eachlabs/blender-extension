@@ -13,7 +13,7 @@ BOTTOM_GAP = 36  # logical px between the bar and the region bottom
 
 KEY_ERRORS = ("Add your Eachlabs API key to start.", "API key was rejected (HTTP 401).")
 CANCELLED = "Stopped. What was built is kept."
-_HIT_ORDER = T.CAMERA_HITS + ("play_menu", "play", "frame", "video_stop", "video_retry", "video_file", "final", "undo", "code", "new", "retry", "keep", "prefs", "network", "halt") + CONSENT_ACTIONS + (
+_HIT_ORDER = T.CAMERA_HITS + ("play_menu", "play", "frame", "video_stop", "video_retry", "video_open", "video_file", "final", "undo", "code", "new", "retry", "keep", "prefs", "network", "halt") + CONSENT_ACTIONS + (
     T.PLAN_HITS + PLAN_ACTIONS + ("plan_limit", "plan_raise", "missing", "widen", "asked") + T.QUALITY_HITS
     + (T.TAB_CLEAR,) + T.TAB_HITS + ("settings", "quality", "send", "stop", "field", "bar"))
 

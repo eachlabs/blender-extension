@@ -30,12 +30,12 @@ def video_line(chat):
     return ""
 
 
-RUNNING_ACTIONS = ("video_stop", "video_file")  # what a chat run leaves usable: no new renders
+RUNNING_ACTIONS = ("video_stop", "video_open", "video_file")  # what a chat run leaves usable: no new renders
 
 
 def attach(s, chat):
     """Show the video on a bar state the done card did not already fill: while a chat run goes, its line on the
-    status line (or under the plan) with Stop, or Show file, first; otherwise its line in the
+    status line (or under the plan) with Stop, or Open Sequencer and Show file, first; otherwise its line in the
     note with its pills after the state's own. Every state with a video keeps a next step for it."""
     line = video_line(chat)
     if s.video or not line:
@@ -69,12 +69,13 @@ def video_tag(chat):
 
 
 def video_actions(chat):
-    """The video's pills: Stop while it is made; Retry after a failed or stopped one; Show file after one."""
+    """The video's pills: Stop while it is made; Retry after a failed or stopped one; Open Sequencer and Show file
+    after one."""
     video = getattr(chat, "video", "")
     if video in ("rendering", "photos", "generating"):
         return ["video_stop"]  # one video at a time
     if video in ("failed", "stopped"):
         return ["video_retry"] if getattr(chat, "video_job", "") else []
     if video == "done":
-        return ["video_file"]
+        return ["video_open", "video_file"]
     return []

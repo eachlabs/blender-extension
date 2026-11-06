@@ -34,7 +34,7 @@ class TextsTest(unittest.TestCase):
                     self.assertTrue(tooltips.text(hit_id), (name, hit_id))
 
     def test_video_tooltips_exist(self):
-        for hit_id in ("video_stop", "video_retry", "video_file"):
+        for hit_id in ("video_stop", "video_retry", "video_open", "video_file"):
             self.assertTrue(tooltips.text(hit_id), hit_id)
 
     def test_the_approved_texts(self):

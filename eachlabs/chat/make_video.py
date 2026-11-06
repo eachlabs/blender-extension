@@ -1,5 +1,5 @@
-"""The shot video's start and its buttons on the bar and the sidebar: Stop, Retry and Show file, and copying the
-video's job into the bar's state. Main thread only. Stop and Retry ask in a Blender dialog."""
+"""The shot video's start and its buttons on the bar and the sidebar: Stop, Retry, Open Sequencer and Show file, and
+copying the video's job into the bar's state. Main thread only. Stop and Retry ask in a Blender dialog."""
 
 import os
 import time
@@ -9,7 +9,7 @@ import bpy
 from .. import confirm, main_thread, pipeline
 from ..shot import price, start
 from ..ui import tokens, tooltips
-from . import video_track
+from . import video_track, video_window
 from .live import chat_run
 
 RUNNING = ("rendering", "photos", "generating")
@@ -136,6 +136,30 @@ def _video_path(job):
     return next((path for path, kind in job.outputs if kind == "video"), "") if job is not None else ""
 
 
+class EACHLABS_OT_chat_video_open(bpy.types.Operator):
+    bl_idname = "eachlabs.chat_video_open"
+    bl_label = "Open Sequencer"
+    bl_description = tooltips.TEXTS["video_open"]
+
+    @classmethod
+    def poll(cls, context):
+        return job_of(("done",)) is not None and context.window is not None
+
+    def execute(self, context):
+        job = job_of(("done",))
+        scene = bpy.data.scenes.get(job.context.get("sequencer_scene", ""))
+        if scene is None:
+            self.report({"ERROR"}, "The scene of this video is gone.")
+            return {"CANCELLED"}
+        camera = scene.objects.get(((job.context.get("shot") or {}).get("request") or {}).get("camera", ""))
+        try:
+            video_window.open_window(context, scene, "EL %s" % job.job_id, camera)
+        except RuntimeError as exc:
+            self.report({"ERROR"}, str(exc))
+            return {"CANCELLED"}
+        return {"FINISHED"}
+
+
 class EACHLABS_OT_chat_video_file(bpy.types.Operator):
     bl_idname = "eachlabs.chat_video_file"
     bl_label = "Show file"
@@ -154,4 +178,5 @@ class EACHLABS_OT_chat_video_file(bpy.types.Operator):
         return {"FINISHED"}
 
 
-CLASSES = (EACHLABS_OT_chat_video_stop, EACHLABS_OT_chat_video_retry, EACHLABS_OT_chat_video_file)
+CLASSES = (EACHLABS_OT_chat_video_stop, EACHLABS_OT_chat_video_retry, EACHLABS_OT_chat_video_open,
+           EACHLABS_OT_chat_video_file)

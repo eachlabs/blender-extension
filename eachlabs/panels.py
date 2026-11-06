@@ -177,7 +177,7 @@ CHAT_ACTIONS = {"retry": ("eachlabs.chat_retry_stage", "FILE_REFRESH"), "undo": 
                 "code": ("eachlabs.chat_show_code", "TEXT"), "final": ("eachlabs.chat_final_render", "RENDER_STILL"),
                 "video_stop": ("eachlabs.chat_video_stop", "CANCEL"),
                 "video_retry": ("eachlabs.chat_video_retry", "FILE_REFRESH"),
-                "video_file": ("eachlabs.chat_video_file", "FILEBROWSER")}
+                "video_open": ("eachlabs.chat_video_open", "SEQUENCE"), "video_file": ("eachlabs.chat_video_file", "FILEBROWSER")}
 
 
 def draw_chat(layout, context):
