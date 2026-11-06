@@ -4,7 +4,7 @@ import time
 
 from .. import chat_run
 from . import draw, hover, live
-from ..ui import bar, bar_state, tokens as T
+from ..ui import bar, bar_state, tokens as T, video_texts as V
 
 
 def _target(context, event):
@@ -73,6 +73,8 @@ def _click(context, event, target):
         live.overlay.UI["quality_menu"] = False  # a click anywhere but the menu closes it
     if name != "play_menu" and name not in T.CAMERA_HITS:
         live.overlay.UI["camera_menu"] = False  # the same for the camera menu
+    if name not in V.CHIP_HITS and name not in V.MENU_HITS:
+        live.overlay.UI["video_menu"] = ""  # and for a Video tab chip's menu
     live.overlay.UI["drag"] = None
     if name in ("field", "bar"):
         if name == "field" and "field" in placed[1].hits:
@@ -120,8 +122,11 @@ def _type(context, event):
     wm = context.window_manager
     if result == "submit":
         live.overlay.submit(context)
-    elif result == "blur" and (live.overlay.UI["quality_menu"] or live.overlay.UI["camera_menu"]):
-        live.overlay.UI["quality_menu"] = live.overlay.UI["camera_menu"] = False  # Esc closes a menu first
+    elif result == "blur" and (live.overlay.UI["quality_menu"] or live.overlay.UI["camera_menu"]
+                               or live.overlay.UI["video_menu"]):
+        live.overlay.close_menus()  # Esc closes a menu first
+    elif result == "blur" and (live.overlay.UI["video_confirm"] or live.overlay.UI["video_stop_ask"]):
+        live.overlay.UI["video_confirm"] = live.overlay.UI["video_stop_ask"] = False  # then the question
     elif result == "blur" and live.overlay.UI["consent"]:
         live.overlay.consent(context, "cancel")  # Esc closes the card first; the bar keeps the keys
     elif result == "blur":
@@ -146,7 +151,7 @@ def on_event(context, event):
         if event.value in ("PRESS", "DOUBLE_CLICK"):
             live.overlay.UI["pressed"] = target is not None
             if target is None:
-                live.overlay.UI["quality_menu"] = live.overlay.UI["camera_menu"] = False
+                live.overlay.close_menus()
                 if live.overlay.UI["focused"]:
                     live.overlay.blur()
                 return {"PASS_THROUGH"}

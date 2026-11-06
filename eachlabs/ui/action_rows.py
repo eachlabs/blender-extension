@@ -2,6 +2,7 @@
 
 from .fonts import ELLIPSIS, cut, measure
 from . import tokens as T
+from . import video_texts as V
 from .draw import _META_INSET, _flow, _icon, _icon_width, _meta, _paint, _paragraph_row, _text
 
 
@@ -20,7 +21,6 @@ _ACTION_LABELS = {"play": "Play", "frame": "Frame result", "keep": "Keep the sce
                   "final": "Final render", "video_stop": "Stop video", "video_retry": "Retry video",
                   "video_open": "Open Sequencer", "video_file": "Show file"}
 _ACTION_ICONS = {"play", "retry", "frame", "undo", "code"}
-_VIDEO_ICONS = {"video_stop": "stop", "video_retry": "retry", "video_open": "play", "video_file": "open_file"}
 CONSENT_ACTIONS = ("consent_check", "consent_plain", "consent_cancel")
 PLAN_ACTIONS = ("plan_build", "plan_cancel")
 BUDGET_ACTIONS = ("plan_limit", "plan_raise", "plan_cancel")  # a plan that needs more rounds than the limit
@@ -83,24 +83,25 @@ def _pill(action, state, width=None):
             T.SPLIT_CHEVRON_W if split else 0)
         label = play_label(state, None if width is None else width - fixed)
         return fixed + measure(label, "medium", T.PILL_SIZE), h, (action, label, icon, split)
-    label = action_label(action, state.stages, state.undo_stage, state.widen_label, state.raise_label,
-                         state.missing_label)
-    icon = _VIDEO_ICONS.get(action) or (action if action in _ACTION_ICONS else None)
+    label = state.labels.get(action) or action_label(action, state.stages, state.undo_stage, state.widen_label,
+                                                     state.raise_label, state.missing_label)
+    icon = V.ICONS.get(action) or (action if action in _ACTION_ICONS else None)
     if action in _PLAIN:  # plain text, no pill
         return measure(label, "medium", T.PILL_SIZE) + 2 * T.PILL_PAD_Y, h, (action, label, None, "")
     w = T.PILL_PAD_LEFT + (_icon_width(icon) + T.PILL_ICON_GAP if icon else 0) + T.PILL_PAD_RIGHT
-    return w + measure(label, "medium", T.PILL_SIZE), h, (action, label, icon, "")
+    return w + measure(label, "medium", T.PILL_SIZE), h, (action, label, icon, "", action in state.primary)
 
 
 
 def _draw_pill(canvas, x, y, w, h, item, hits):
-    action, label, icon, split = item
+    action, label, icon, split = item[:4]
+    primary = len(item) > 4 and item[4]
     hits[action] = (x, y, w - T.SPLIT_CHEVRON_W if split else w, h)
     if action in _PLAIN:
         _text(canvas, label, x + T.PILL_PAD_Y, y + T.PILL_PAD_Y, T.PILL_LINE, "medium", T.PILL_SIZE, T.CANCEL_TEXT)
         return
     rect = skia.RRect.MakeRectXY(skia.Rect.MakeXYWH(x, y, w, h), h / 2, h / 2)
-    if action in T.PRIMARY_ACTIONS or (action == "consent_plain" and not T.CODE_CHECK_AVAILABLE):
+    if primary or action in T.PRIMARY_ACTIONS or (action == "consent_plain" and not T.CODE_CHECK_AVAILABLE):
         canvas.drawRRect(rect, _paint(T.PRIMARY_FILL))
     else:
         canvas.drawRRect(rect, _paint(T.SECONDARY_FILL))

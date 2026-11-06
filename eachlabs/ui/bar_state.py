@@ -3,6 +3,7 @@
 import os
 
 from . import tokens as T
+from . import video_tab, video_texts as V
 from .video_line import attach, video_actions, video_line, video_tag  # noqa: F401  (video_line: the bar's API)
 from .bar import BUDGET_ACTIONS, CONSENT_ACTIONS, PLAN_ACTIONS, BarState
 
@@ -13,7 +14,7 @@ BOTTOM_GAP = 36  # logical px between the bar and the region bottom
 
 KEY_ERRORS = ("Add your Eachlabs API key to start.", "API key was rejected (HTTP 401).")
 CANCELLED = "Stopped. What was built is kept."
-_HIT_ORDER = T.CAMERA_HITS + ("play_menu", "play", "frame", "video_stop", "video_retry", "video_open", "video_file", "final", "undo", "code", "new", "retry", "keep", "prefs", "network", "halt") + CONSENT_ACTIONS + (
+_HIT_ORDER = V.HITS + T.CAMERA_HITS + ("play_menu", "play", "frame", "video_stop", "video_retry", "video_open", "video_file", "final", "undo", "code", "new", "retry", "keep", "prefs", "network", "halt") + CONSENT_ACTIONS + (
     T.PLAN_HITS + PLAN_ACTIONS + ("plan_limit", "plan_raise", "missing", "widen", "asked") + T.QUALITY_HITS
     + (T.TAB_CLEAR,) + T.TAB_HITS + ("settings", "quality", "send", "stop", "field", "bar"))
 
@@ -177,9 +178,9 @@ def camera_picked(hit_id, menu):
 
 def from_chat(chat, field, focused, now, caret_on=True, spinner_phase=0.0, key_changed=False, has_scene=False,
               undoable=None, consent=False, quality="", menu=False, asked_open=False, advanced=True, tab="",
-              cameras=(), camera_menu=False, playing=False, thing=""):
+              cameras=(), camera_menu=False, playing=False, thing="", shot=None):
     """See ``_from_chat``; ``thing``: the selected thing (``thing_label``), changed by a prompt on Assets or
-    Characters; ``quality``: the quality mode, shown on the pill (none for ``""``); ``menu``: its menu is open. Both are off while a run is going: the pill is dimmed. ``advanced``: Show code, Final render and New scene are shown (Preferences, "Show advanced tools"); ``tab``: the chosen tab, none for ``""``. ``cameras``: the scene's cameras as ``(name, hint, chosen)`` (``play_cameras.menu``); ``camera_menu``: their menu is open; ``playing``: the animation plays."""
+    Characters; ``quality``: the quality mode, shown on the pill (none for ``""``); ``menu``: its menu is open. Both are off while a run is going: the pill is dimmed. ``advanced``: Show code, Final render and New scene are shown (Preferences, "Show advanced tools"); ``tab``: the chosen tab, none for ``""``. ``cameras``: the scene's cameras as ``(name, hint, chosen)`` (``play_cameras.menu``); ``camera_menu``: their menu is open; ``playing``: the animation plays; ``shot``: the Video tab's ``video_tab.Shot`` (that tab is drawn from it)."""
     s = _from_chat(chat, field, focused, now, caret_on, spinner_phase, key_changed, has_scene, undoable, consent)
     if not advanced:
         s.actions = _without_advanced(s.actions)
@@ -210,6 +211,8 @@ def from_chat(chat, field, focused, now, caret_on=True, spinner_phase=0.0, key_c
     s.quality_enabled = not chat.running
     if menu and s.quality_label and not chat.running and s.mode != "consent":
         s.quality_menu = quality_menu(quality)
+    if tab == "video" and shot is not None and not chat.running:
+        return video_tab.apply(s, chat, shot, now)
     attach(s, chat)  # the video in every state the done card does not cover
     _play(s, cameras, camera_menu and not s.quality_menu, playing)
     return s

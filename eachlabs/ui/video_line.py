@@ -69,8 +69,8 @@ def video_tag(chat):
 
 
 def video_actions(chat):
-    """The video's pills: Stop while it is made; Retry after a failed or stopped one; Open Sequencer and Show file
-    after one."""
+    """The video's pills outside the Video tab: Stop while it is made; Retry after a failed or stopped one; Open
+    Sequencer and Show file after one. A new video starts on the Video tab."""
     video = getattr(chat, "video", "")
     if video in ("rendering", "photos", "generating"):
         return ["video_stop"]  # one video at a time

@@ -100,7 +100,7 @@ def _stopped(scene, plan):
 
 
 def _bar_follows(job, clip):
-    """The done card follows the finished job."""
+    """The done card follows the finished job, and the Video tab counts the photos as the job picked them."""
     from eachlabs import chat_run
     from eachlabs.chat import make_video
 
@@ -109,10 +109,17 @@ def _bar_follows(job, clip):
     try:
         state.video, state.video_job = "rendering", job.job_id
         make_video.sync()
-        check("shot: the bar shows the finished video, with Show file and Open Sequencer",
-              state.video == "done" and bpy.types.EACHLABS_OT_chat_video_file.poll(bpy.context)
+        scene = bpy.data.scenes[job.context["scene"]]
+        request = job.context["shot"]["request"]
+        camera = scene.objects[request["camera"]]
+        if not view_cache.measured(scene, camera, request["aspect"]):  # what the Video tab's timer does
+            view_cache.measure(scene, camera, request["aspect"])
+        photos = view_cache.photos(scene, camera, request["aspect"], job.context["shot"]["seconds"])
+        check("shot: the bar shows the finished video, and the Video tab counts its two photos",
+              state.video == "done" and photos == len(job.context["shot"]["renders"]) == 2
+              and bpy.types.EACHLABS_OT_chat_video_file.poll(bpy.context)
               and bpy.types.EACHLABS_OT_chat_video_open.poll(bpy.context) == (bpy.context.window is not None),
-              state.video)
+              "%s %d" % (state.video, photos))
         state.video = "failed"
         asked = make_video._retry_price(bpy.context)
         check("shot: Retry without the bar asks with what it makes and its price for the scene as it is now",
@@ -195,11 +202,25 @@ def _retry_while_chat_runs(job, teapot):
         state.video, state.video_job = saved
 
 
+_UI = {"video_menu": "", "video_confirm": False, "video_stop_ask": False, "video_hidden": None, "video_priced": None,
+       "video_changed": False}
+
+
+def _tab():
+    from eachlabs.chat import video_tab
+
+    return video_tab.shot(bpy.context, _UI)
+
+
 def _no_chat_build():
-    """A scene opened from a file: no chat run built it, so there is no chat build; a camera is enough."""
+    """A scene opened from a file: no chat run built it, so there is no chat build; the Video tab still works."""
     from eachlabs import chat_run
+    from eachlabs.ui import video_tab
 
     chat_run._build = None
+    shown = _tab()
+    check("shot: the Video tab needs a camera, not a chat build",
+          shown.camera and not video_tab.send_block(shown, False), str(chat_run.STATE.video))
 
 
 def _measured_once(scene):
@@ -246,16 +267,19 @@ def _measured_once(scene):
 def _load_forgets(scene, cam):
     """Opening another file forgets every measure: its scene and camera may carry the same names."""
     from eachlabs import chat_run, render_export
+    from eachlabs.chat import video_tab
 
     saved = chat_run.cancel, chat_run.reset_view, render_export.cancel_pending, pipeline.REGISTRY.cancel_all
     chat_run.cancel = chat_run.reset_view = render_export.cancel_pending = lambda *a, **kw: None
     pipeline.REGISTRY.cancel_all = lambda *a, **kw: None
+    video_tab._wanted[:] = [(scene.name, cam.name, "16:9", None)]
     try:
         pipeline.on_load_pre(None)  # what Blender calls before it opens another file
     finally:
         chat_run.cancel, chat_run.reset_view, render_export.cancel_pending, pipeline.REGISTRY.cancel_all = saved
-    check("shot: opening another file forgets the measures, so the same names measure again",
-          not view_cache.measured(scene, cam, "16:9") and view_cache.photos(scene, cam, "16:9", 4) is None)
+    check("shot: opening another file forgets the measures and the waiting one, so the same names measure again",
+          not view_cache.measured(scene, cam, "16:9") and view_cache.photos(scene, cam, "16:9", 4) is None
+          and not video_tab._wanted)
 
 
 def _changed_scene_refuses(scene):
@@ -399,6 +423,7 @@ def test_still_shot(scene):
     5 s, the 48-frame range filmed and its last frame held, with one photo, of the first frame."""
     from eachlabs import chat_run
     from eachlabs.chat import playback
+    from eachlabs.ui import video_tab
 
     _no_chat_build()
     cam = bpy.data.objects.new("Still camera", bpy.data.cameras.new("Still camera"))
@@ -408,11 +433,13 @@ def test_still_shot(scene):
     scene.camera, chat_run.STATE.play_camera = cam, cam.name
     try:
         fps = scene.render.fps / scene.render.fps_base
-        check("shot: a still camera is a camera to film through, and its video starts at 5 s, up to 15 s",
+        shown = _tab()
+        check("shot: a still camera is a camera to film through, and the Video tab starts at 5 s, up to 15 s",
               playback.chosen(scene) == cam.name and not playback.camera_moves(scene)
-              and timing.longest(scene.frame_start, scene.frame_end, fps, False) == 15
+              and shown.camera == cam.name and not video_tab.moves(shown) and shown.longest == 15
+              and shown.seconds == 5 and video_tab.notes(shown) == [video_tab.V.STILL]
               and timing.default_seconds(scene.frame_start, scene.frame_end, fps, False) == 5,
-              "%s %s" % (playback.chosen(scene), playback.camera_moves(scene)))
+              "%s %s %s" % (playback.chosen(scene), playback.camera_moves(scene), shown))
         _moved_by_a_constraint(scene, cam)
         plan = timing.plan(scene.frame_start, scene.frame_end, fps, 5)
         with offline_api():

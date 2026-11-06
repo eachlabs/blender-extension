@@ -1,5 +1,8 @@
-"""The shot video's start and its buttons on the bar and the sidebar: Stop, Retry, Open Sequencer and Show file, and
-copying the video's job into the bar's state. Main thread only. Stop and Retry ask in a Blender dialog."""
+"""The shot video's start and its buttons outside the bar's Video tab: Make video (opens the tab), Stop, Retry, Open
+Sequencer and Show file, and copying the video's job into the bar's state. Main thread only.
+
+The Video tab (``video_tab.py``) holds the settings and asks before anything is paid; these operators keep the ids
+the sidebar and the status row's pills call. Without the bar (no Skia), Stop and Retry ask in a Blender dialog."""
 
 import os
 import time
@@ -13,11 +16,10 @@ from . import video_track, video_window
 from .live import chat_run
 
 RUNNING = ("rendering", "photos", "generating")
-RETRY_ASK = "Make a %d s, %s video through %s again. Total %s. It may still be billed after Stop."
 
 
 def video_start(context, request, again="", frames=()):
-    """Start the video and show it on the bar; a start that cannot run shows why on the bar.
+    """Start the video and show it on the bar; a start that cannot run shows why on the Video tab's card.
     ``again``: the job id of a video to make again from its own request instead, with the confirmed ``frames``.
     ``start.SceneChanged`` passes through: nothing started, and the caller asks again with the new price."""
     state = chat_run.STATE
@@ -64,6 +66,26 @@ def stop():
     main_thread.tag_redraw()
 
 
+def _bar():
+    from .. import overlay
+
+    return overlay if overlay.active() else None
+
+
+class EACHLABS_OT_chat_make_video(bpy.types.Operator):
+    bl_idname = "eachlabs.chat_make_video"
+    bl_label = "Make video"
+    bl_description = tooltips.TEXTS["tab_video"]
+
+    @classmethod
+    def poll(cls, context):
+        return not chat_run.STATE.running and _bar() is not None
+
+    def execute(self, context):
+        _bar().show_tab(context, "video")
+        return {"FINISHED"}
+
+
 class EACHLABS_OT_chat_video_stop(bpy.types.Operator):
     bl_idname = "eachlabs.chat_video_stop"
     bl_label = "Stop video"
@@ -96,6 +118,13 @@ class EACHLABS_OT_chat_video_retry(bpy.types.Operator):
         return job is not None and bool(job.context.get("shot")) and not chat_run.STATE.running
 
     def invoke(self, context, event):
+        bar = _bar()
+        if bar is not None:  # the Video tab asks, with the settings and the price
+            bar.show_tab(context, "video")
+            from . import video_tab
+
+            video_tab.retry(context, bar.UI, bar.FIELD)
+            return {"FINISHED"}
         asked = _retry_price(context)
         if asked is None:
             return self.execute(context)  # the rerun refuses and says why
@@ -116,9 +145,10 @@ class EACHLABS_OT_chat_video_retry(bpy.types.Operator):
 
 
 def _retry_price(context):
-    """``(message, key frames)`` for Retry's dialog: what it makes and its price, measured on the scene as it is
-    now; ``None`` when the rerun cannot run here."""
+    """``(message, key frames)`` for Retry's dialog without the bar: what it makes and its price, measured on the
+    scene as it is now; ``None`` when the rerun cannot run here."""
     from ..shot import view_cache
+    from ..ui import video_tab as view
 
     job = job_of(("failed", "stopped"))
     request = (job.context.get("shot") or {}).get("request") if job is not None else None
@@ -128,8 +158,10 @@ def _retry_price(context):
         return None
     plan = view_cache.plan_for(scene, request["seconds"])
     frames = view_cache.frames(scene, camera, request["aspect"], plan, fresh=True)
-    total = price.text(price.total(request["resolution"], plan.seconds, len(frames)))
-    return RETRY_ASK % (plan.seconds, request["resolution"], camera.name, total), frames
+    shot = view.Shot(camera=camera.name, aspect=request["aspect"], resolution=request["resolution"],
+                     seconds=plan.seconds, photos={plan.seconds: len(frames)})
+    meta, text, _label = view.confirm(shot)
+    return "%s %s." % (text, meta), frames
 
 
 def _video_path(job):
@@ -178,5 +210,5 @@ class EACHLABS_OT_chat_video_file(bpy.types.Operator):
         return {"FINISHED"}
 
 
-CLASSES = (EACHLABS_OT_chat_video_stop, EACHLABS_OT_chat_video_retry, EACHLABS_OT_chat_video_open,
-           EACHLABS_OT_chat_video_file)
+CLASSES = (EACHLABS_OT_chat_make_video, EACHLABS_OT_chat_video_stop, EACHLABS_OT_chat_video_retry,
+           EACHLABS_OT_chat_video_open, EACHLABS_OT_chat_video_file)

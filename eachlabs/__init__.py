@@ -42,8 +42,10 @@ def unregister():
 
     playback.unregister()
     video_window.unregister()  # stops the video window's playback and its handlers
+    from .chat import video_tab
     from .shot import render_window, view_cache
 
+    video_tab.forget()
     view_cache.forget()
     render_window.restore()  # a shot still rendering: the person's render window setting comes back
     viewport_marks.unregister()

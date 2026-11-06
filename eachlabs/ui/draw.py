@@ -1,5 +1,6 @@
 """Drawing primitives for the bar: paints, text, icons, the spinner, the mark, flowing items and a paragraph row."""
 
+import math
 import os
 
 try:
@@ -93,7 +94,25 @@ def _icon(canvas, name, x, y, s, color):
         canvas.drawRRect(skia.RRect.MakeRectXY(skia.Rect.MakeXYWH(x + s * 0.1, y + s * 0.1, s * 0.8, s * 0.8),
                                                s * 0.15, s * 0.15), _paint(color))
         return
-    if name == "open_file":  # an arrow out to the top right
+    if name == "ring":  # a ring around a dot: a camera, a setting
+        canvas.drawCircle(x + s / 2, y + s / 2, s * 0.42, _paint(color, stroke=s * 0.12))
+        canvas.drawCircle(x + s / 2, y + s / 2, s * 0.22, _paint(color))
+        return
+    if name == "sparkle":  # a four-pointed star
+        cx, cy = x + s / 2, y + s / 2
+        for i in range(8):
+            angle = math.radians(i * 45 - 90)
+            r = s * (0.5 if i % 2 == 0 else 0.14)
+            (path.moveTo if i == 0 else path.lineTo)(cx + r * math.cos(angle), cy + r * math.sin(angle))
+        path.close()
+        canvas.drawPath(path, _paint(color))
+        return
+    if name == "close":  # a cross
+        path.moveTo(x + s * 0.15, y + s * 0.15)
+        path.lineTo(x + s * 0.85, y + s * 0.85)
+        path.moveTo(x + s * 0.85, y + s * 0.15)
+        path.lineTo(x + s * 0.15, y + s * 0.85)
+    elif name == "open_file":  # an arrow out to the top right
         path.moveTo(x + s * 0.15, y + s * 0.85)
         path.lineTo(x + s * 0.85, y + s * 0.15)
         path.moveTo(x + s * 0.35, y + s * 0.15)

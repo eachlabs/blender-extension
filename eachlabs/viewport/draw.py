@@ -7,7 +7,7 @@ import traceback
 from gpu_extras.batch import batch_for_shader
 
 from .. import chat_run, compat, preferences
-from ..chat import playback, selection, video_window
+from ..chat import playback, selection, video_tab, video_window
 from . import hover, live
 from ..ui import bar, bar_state
 
@@ -36,14 +36,19 @@ def current_state(now=None):
         live.overlay.UI["key_seen"] = None
     changed = live.overlay.UI["key_seen"] is not None and _api_key() != live.overlay.UI["key_seen"]
     caret_on = int((now - live.overlay.UI["blink_from"]) / live.overlay.BLINK) % 2 == 0
-    phase = (int(now * live.overlay.SPIN_STEPS) % live.overlay.SPIN_STEPS) / live.overlay.SPIN_STEPS if chat.running else 0.0
+    spinning = chat.running or live.overlay.video_spinning()
+    phase = (int(now * live.overlay.SPIN_STEPS) % live.overlay.SPIN_STEPS) / live.overlay.SPIN_STEPS if spinning else 0.0
     finished = chat.status in ("done", "stopped", "cancelled") and not chat.running
     undoable = chat_run.undoable_stages() if finished else None
     asking = bar_state.consent_shown(live.overlay.UI["consent"], preferences.code_allowed(bpy.context))
     if chat.running:
         live.overlay.UI["quality_menu"] = live.overlay.UI["camera_menu"] = False  # no menus while a run is going
+        live.overlay.UI["video_menu"], live.overlay.UI["video_confirm"] = "", False
     playing = playback.is_playing()
     cameras = playback.menu(bpy.context.scene) if finished and chat.status == "done" and not playing else []
+    shot = None
+    if chat.target == "video" and not chat.running:  # reads the measured view only; measuring runs on a timer
+        shot = video_tab.shot(bpy.context, live.overlay.UI, live.overlay.FIELD.text)
     thing = ""
     if chat.target in ("asset", "character") and not chat.running:
         thing = bar_state.thing_label(selection.selected_things(bpy.context))
@@ -53,7 +58,7 @@ def current_state(now=None):
                                 asked_open=live.overlay.UI["asked_open"],
                                 advanced=preferences.advanced_tools(bpy.context), tab=chat.target,
                                 cameras=cameras, camera_menu=live.overlay.UI["camera_menu"], playing=playing,
-                                thing=thing)
+                                thing=thing, shot=shot)
     state.thinking_seconds = float(int(state.thinking_seconds))
     from . import fold  # it calls this module's redraw
 

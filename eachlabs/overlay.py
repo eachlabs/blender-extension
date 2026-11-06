@@ -62,7 +62,14 @@ UI = {"focused": False, "blink_from": 0.0, "mcp_checked": False, "key_seen": Non
       "tip": False,  # its tooltip shows (after TIP_DELAY)
       "tip_quiet": None,  # (region pointer, hit id) a click hid the tooltip of, until another control is hovered
       "over_bar": False,  # the mouse is on the bar (any part of it), see viewport/fold.py
-      "done_since": None}  # when the done card that may fold first showed (time.monotonic)
+      "done_since": None,  # when the done card that may fold first showed (time.monotonic)
+      "tab_text": {},  # tab -> the field's text when the person left that tab; each tab keeps its own
+      "video_menu": "",  # the Video tab's chip whose menu is open
+      "video_confirm": False,  # Send asked on the Video tab: the confirm card shows
+      "video_stop_ask": False,  # Stop video asked: the card asks before it stops
+      "video_hidden": None,  # (job id, state) of the video card Make another or Edit the settings closed
+      "video_priced": None,  # (scene, camera, aspect, seconds, key frames) the confirm card priced
+      "video_changed": False}  # Make video found the scene changed: the card shows the new price and says so
 _handle = None
 _keymaps = []  # (keymap, item)
 _placed = {}  # region pointer -> (origin, frame, width, scale, state) as last drawn
@@ -246,11 +253,16 @@ def start_input(context):
     bpy.ops.eachlabs.bar_input("INVOKE_DEFAULT")
 
 
+def video_spinning():
+    """The Video tab shows a video being made: its spinner and clock move."""
+    return chat_run.STATE.target == "video" and chat_run.STATE.video in ("rendering", "photos", "generating")
+
+
 def _tick():
-    """Redraws for the caret blink and the run's spinner; ends when the bar is neither focused nor running."""
+    """Redraws for the caret blink and the spinners; ends when the bar is neither focused nor running."""
     try:
         now = time.monotonic()
-        if chat_run.STATE.running:
+        if chat_run.STATE.running or video_spinning():
             tag_redraw()
             return SPIN_INTERVAL
         if UI["focused"]:
@@ -272,7 +284,8 @@ def _schedule():
 def _hook():
     """A main-thread hook: a run started from the sidebar also gets the bar's spinner."""
     if chat_run.STATE.running:
-        UI["consent"] = UI["quality_menu"] = UI["camera_menu"] = False
+        UI["consent"] = UI["quality_menu"] = UI["camera_menu"] = UI["video_confirm"] = False
+        UI["video_menu"] = ""
         if not bpy.app.timers.is_registered(_tick):
             _schedule()
     return False
@@ -283,6 +296,8 @@ def _on_load(_dummy):
     _placed.clear()
     _cache.clear()
     UI["focused"] = UI["pressed"] = UI["consent"] = UI["quality_menu"] = UI["camera_menu"] = False
+    UI["video_menu"], UI["video_confirm"], UI["video_stop_ask"], UI["video_hidden"] = "", False, False, None
+    UI["video_priced"], UI["video_changed"] = None, False
     hover.stop()
     fold.stop()
 
@@ -358,7 +373,8 @@ from .viewport.input import _click, _done, _drag, _target, _target_at, on_event 
 
 
 # Imported last: these modules read this one's state through it.
-from .viewport.actions import _act, _stop, blur, consent, focus, open_consent, restore_prompt, submit  # noqa: F401
+from .viewport.actions import (_act, _stop, blur, close_menus, consent, focus, open_consent, restore_prompt,  # noqa: F401
+                               show_tab, submit)
 
 
 # Imported last: these modules read this one's state through it.
