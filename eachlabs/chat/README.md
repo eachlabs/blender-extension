@@ -31,6 +31,8 @@ module; `chat_run.py` keeps the run's live state and `chat_loop.py` the stage lo
 | `playback.py` | Play through a camera: the view looks through it while playing, then the view and the scene camera go back; whether a camera moves, from its keys and its parents', and from the targets of its constraints (Track To, Child Of, a Follow Path's animated path) |
 | `play_cameras.py` | Which cameras Play lists, in what order, and each one's hint (no Blender) |
 | `final_render.py` | Final render: the scene camera once with Cycles, saved next to the `.blend`, settings put back |
+| `make_video.py` | Starting the shot video, and its operators on the bar and the sidebar: Stop, Retry (it asks with the price) and Show file |
+| `video_track.py` | A shot video job's state and stage (camera move, key frames, look, video, Sequencer) copied into the bar's video state on every main-thread tick (`pipeline.tick_hook`) and cleared when another file opens, and how far its renders are (no Blender) |
 | `final_settings.py` | Final render's samples, aperture from the subject's size, and file name (no `bpy`) |
 | `library_use.py`, `stage_log.py`, `debug_log.py` | The helper library in a run, the local stage log, the debug log |
 | `live.py` | Late access to `chat_run`'s module state |
@@ -38,7 +40,7 @@ module; `chat_run.py` keeps the run's live state and `chat_loop.py` the stage lo
 ## Neighbours
 
 - **Called by** `chat_run.py` (start, stop, retry) and the bar in `viewport/`.
-- **Calls** `instructions/` for what the model is told, `scene_build.py` and `code_runner.py` for every step,
+- **Calls** `shot/` to start, retry and price a shot video, `instructions/` for what the model is told, `scene_build.py` and `code_runner.py` for every step,
   `checks/` through `read_scene`, `placement/`, `polyhaven/` and `library/`.
 
 ## Keep out
@@ -50,5 +52,5 @@ module; `chat_run.py` keeps the run's live state and `chat_loop.py` the stage lo
 ## Tests
 
 `tests/test_chat_loop.py`, `tests/test_detail*.py`, `tests/test_judge.py`, `tests/test_review.py`, `tests/test_stage_log.py`,
-`tests/test_play_cameras.py` (unit), and the
-chat scenarios in `tests/smoke.py` (Blender).
+`tests/test_play_cameras.py`, `tests/test_video_track.py` (unit), the
+chat scenarios in `tests/smoke.py` (Blender), and the shot video's line on the bar in `tests/gui_check/video.py`.

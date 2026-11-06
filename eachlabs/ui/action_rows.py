@@ -17,8 +17,10 @@ _ACTION_LABELS = {"play": "Play", "frame": "Frame result", "keep": "Keep the sce
                   "consent_check": "Build with code check", "consent_plain": "Build without check",
                   "consent_cancel": "Cancel", "plan_build": "Build", "plan_cancel": "Cancel",
                   "missing": "Build the missing things", "plan_limit": "Build within my limit",
-                  "final": "Final render"}
+                  "final": "Final render", "video_stop": "Stop video", "video_retry": "Retry video",
+                  "video_file": "Show file"}
 _ACTION_ICONS = {"play", "retry", "frame", "undo", "code"}
+_VIDEO_ICONS = {"video_stop": "stop", "video_retry": "retry", "video_file": "open_file"}
 CONSENT_ACTIONS = ("consent_check", "consent_plain", "consent_cancel")
 PLAN_ACTIONS = ("plan_build", "plan_cancel")
 BUDGET_ACTIONS = ("plan_limit", "plan_raise", "plan_cancel")  # a plan that needs more rounds than the limit
@@ -83,10 +85,10 @@ def _pill(action, state, width=None):
         return fixed + measure(label, "medium", T.PILL_SIZE), h, (action, label, icon, split)
     label = action_label(action, state.stages, state.undo_stage, state.widen_label, state.raise_label,
                          state.missing_label)
-    icon = action if action in _ACTION_ICONS else None
+    icon = _VIDEO_ICONS.get(action) or (action if action in _ACTION_ICONS else None)
     if action in _PLAIN:  # plain text, no pill
         return measure(label, "medium", T.PILL_SIZE) + 2 * T.PILL_PAD_Y, h, (action, label, None, "")
-    w = T.PILL_PAD_LEFT + (_icon_width(action) + T.PILL_ICON_GAP if icon else 0) + T.PILL_PAD_RIGHT
+    w = T.PILL_PAD_LEFT + (_icon_width(icon) + T.PILL_ICON_GAP if icon else 0) + T.PILL_PAD_RIGHT
     return w + measure(label, "medium", T.PILL_SIZE), h, (action, label, icon, "")
 
 
@@ -152,10 +154,13 @@ def _actions_row(state, width, meta=""):
 
 
 def _consent_rows(state, width):
-    """The consent card above the input: title, body, the buttons, and the Code check hint when it is offered."""
+    """The consent card above the input: title, body, the video's line when there is one, the buttons, and the Code
+    check hint when it is offered."""
     rows = [_paragraph_row(T.CONSENT_TITLE, "semibold", T.TITLE_SIZE, T.TITLE_LINE, T.REPLY, width),
-            _paragraph_row(T.CONSENT_BODY, "regular", T.BODY_SIZE, T.BODY_LINE, T.BODY, width),
-            _actions_row(state, width)]
+            _paragraph_row(T.CONSENT_BODY, "regular", T.BODY_SIZE, T.BODY_LINE, T.BODY, width)]
+    if state.note:  # a shot video still being made, or made
+        rows.append(_paragraph_row(state.note, "regular", T.TEXT_SIZE, T.STATUS_LINE, T.REPLY, width))
+    rows.append(_actions_row(state, width))
     if T.CODE_CHECK_AVAILABLE:
         rows.append(_paragraph_row(T.CONSENT_HINT, "medium", T.HINT_SIZE, T.HINT_LINE, T.HINT, width))
     return rows

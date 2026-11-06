@@ -213,10 +213,13 @@ def _camera_menu_rows(state, width):
 
 
 def _folded_line(state):
-    """The folded done card's one line: ``DONE · 34 ROUNDS · 6 MIN · $0.38``, and what waits under it."""
+    """The folded done card's one line: ``DONE · 34 ROUNDS · 6 MIN · $0.38``, what waits under it, and the
+    video: ``VIDEO 40%``."""
     parts = ["Done"] + ([state.cost_text] if state.cost_text else [])
     if "retry" in state.actions:
         parts.append(T.FOLDED_PARTLY)
+    if state.video_tag:
+        parts.append(state.video_tag)
     return " · ".join(parts).upper()
 
 
@@ -245,6 +248,8 @@ def _status_rows(state, width):
     if state.mode in _RUNNING:
         for line in state.objects:  # one line per 3D job: "Generating the car… 2:10"
             rows.append(_object_row(line, state, width))
+        if state.actions and not (state.mode == "building" and state.error):  # a refused step drew its own
+            rows.append(_actions_row(state, width))  # the video's Stop or Open Sequencer while the chat runs
     elif state.mode == "done":
         if state.error:  # a run that changed nothing: the bar's own line comes before the model's reply
             rows.extend(_error_rows(dataclasses.replace(state, actions=[]), width))

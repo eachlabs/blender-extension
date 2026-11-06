@@ -201,6 +201,17 @@ FINAL_RENDERING = "Final render: rendering in its own window with Cycles. Esc th
 FINAL_SAVED = "Final render saved in %s: %s, next to the .blend file."
 FINAL_STOPPED = "Final render stopped. Final render starts it again."
 FINAL_FAILED = "Final render failed: %s. Final render tries again."
+# The shot video's line on the done card, and its part of the folded line (upper-cased there).
+VIDEO_RENDERING = "Video: recording the camera move… %d%%"
+VIDEO_PHOTOS = "Video: making the look (%s)…"
+VIDEO_UPLOADING = "Video: making the look…"
+VIDEO_GENERATING = "Video: %s is making it… %s"
+VIDEO_DONE = "Video: in the Video Sequencer"
+VIDEO_FAILED = "Video failed: %s"
+VIDEO_STOPPED = "Video stopped; it may still be billed"
+VIDEO_RETRY_LATER = " · Retry when the chat finishes."  # while a chat runs: Retry would render under it
+VIDEO_FOLDED = {"rendering": "Video %d%%", "photos": "Video look %s", "generating": "Video %s", "done": "Video ready",
+                "stopped": "Video stopped"}
 QUALITY_HITS = tuple("quality_%d" % i for i in range(len(QUALITIES)))  # the menu's items, in QUALITIES order
 QUALITY_PILL_MAX = 160  # a longer label ends in an ellipsis
 QUALITY_FIELD_MIN = 200  # text width the pill leaves on the input row; below it the pill takes a row of its own
@@ -275,6 +286,8 @@ CONFIRM_CANCEL_JOB = ("Stop this job?", "It stops now, and nothing more is made.
                       "each::labs is billed, and that spend is not refunded.", "Stop job")
 CONFIRM_CANCEL_LOCAL = ("Stop this job?", "Its render stops now. Nothing was sent to each::labs, so nothing is "
                         "billed.", "Stop job")
+CONFIRM_STOP_VIDEO = ("Stop the video?", "It stops now and nothing more is made. Photos or the video already being "
+                      "made on each::labs may still be billed.", "Stop video")
 CONFIRM_CLEAR_JOBS = ("Clear finished jobs?", "Finished jobs leave this list. Their files and anything in your "
                       "scenes stay.", "Clear")
 OBJECTS_WAIT_TEXT = "Waiting for the 3D models to replace their code versions…"

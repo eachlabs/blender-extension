@@ -26,6 +26,9 @@ review_flow = optional("review", "review_flow")
 visual_flow = optional("review", "visual_flow")
 tool_presses = optional("tools", "tool_presses")
 tooltip_checks = optional("tooltips", "tooltip_checks")
+video_flow = optional("video", "video_flow")
+video_before_run = optional("video", "before_run")
+video_during_run = optional("video", "during_run")
 FOLD_AFTER = tokens.FOLD_AFTER  # the scenario turns folding off after its fold checks and puts this back
 
 
@@ -382,6 +385,7 @@ def scenario_bar():
             screenshot("live-03-still.png")
             still_orange = orange_pixels(os.path.join(OUT, "live-03-still.png"))
             yield from play_through(still_orange)
+            yield from video_flow()
 
             scene = chat_run._build.scene
             engine, percentage = scene.render.engine, scene.render.resolution_percentage
@@ -456,10 +460,12 @@ def scenario_bar():
 
             client.chat_llm = SlowLLM(STREET + CAMERA + CHECK + [text_reply("Done.")])
             client.balances = []
+            yield from video_before_run(client)
             click(*bar_point("field"))
             type_text("a street")
             key("RET")
             yield 0.5
+            yield from video_during_run()
             yield from wait_for(lambda: not chat_run.STATE.running, 40)
             yield 0.8
             check("bar: a second full run offers Undo stage", "undo" in placed()[1].hits, str(sorted(placed()[1].hits)))

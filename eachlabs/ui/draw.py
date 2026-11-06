@@ -89,7 +89,17 @@ def _icon(canvas, name, x, y, s, color):
         for left in (0.15, 0.6):
             canvas.drawRect(skia.Rect.MakeXYWH(x + s * left, y + s * 0.08, s * 0.25, s * 0.84), _paint(color))
         return
-    if name == "send":  # up arrow
+    if name == "stop":  # a rounded square
+        canvas.drawRRect(skia.RRect.MakeRectXY(skia.Rect.MakeXYWH(x + s * 0.1, y + s * 0.1, s * 0.8, s * 0.8),
+                                               s * 0.15, s * 0.15), _paint(color))
+        return
+    if name == "open_file":  # an arrow out to the top right
+        path.moveTo(x + s * 0.15, y + s * 0.85)
+        path.lineTo(x + s * 0.85, y + s * 0.15)
+        path.moveTo(x + s * 0.35, y + s * 0.15)
+        path.lineTo(x + s * 0.85, y + s * 0.15)
+        path.lineTo(x + s * 0.85, y + s * 0.65)
+    elif name == "send":  # up arrow
         cx = x + s / 2
         path.moveTo(cx, y + s * 0.9)
         path.lineTo(cx, y + s * 0.1)

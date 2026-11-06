@@ -9,6 +9,7 @@ import bpy
 
 from . import (api_client, capabilities as caps, catalog, chat_run, compat, importers, jobs, main_thread, naming,
                preferences, render_export, thread_safety, timing)
+from .chat import video_track
 from .pipeline_inputs import (  # noqa: F401
     Problem,
     _set_param,
@@ -288,6 +289,7 @@ def tick_hook():
     for job in ready:
         import_result(job)
     _persist_uploads()
+    changed = video_track.follow(chat_run.STATE, REGISTRY, time.monotonic()) or changed  # the bar's video line
     if REGISTRY.active():
         return "busy"
     return changed
@@ -359,6 +361,7 @@ def on_load_pre(*_args):
     chat_run.reset_view()
     render_export.cancel_pending()
     REGISTRY.cancel_all("Cancelled because another file was opened.")
+    video_track.forget(chat_run.STATE)  # its Retry would render the new file's scene
     from .shot import view_cache
 
     view_cache.forget()  # the new file's scenes and cameras may carry the same names

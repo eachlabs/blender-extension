@@ -41,6 +41,10 @@ TEXTS = {
     "missing": "Build the planned things that are not in the scene yet.",
     "widen": "Run the change again, this time also allowed to change the named objects.",
     "asked": "The prompt this run was sent. Click to show all of it; click again to fold it.",
+    "video_stop": "Stop making the video. It asks first, since work already sent to each::labs may still be billed.",
+    "video_retry": "Make the video again with the same settings: the camera move is recorded again and paid again. "
+                   "It shows the price first.",
+    "video_file": "Show the video's MP4 file in Finder or Explorer.",
 }
 PLAN_ITEM = "Click to move this object between a generated 3D model and code. Nothing is paid for before Build."
 QUALITY_ITEMS = ("Choose Prototype: a quick draft for about $0.5.",

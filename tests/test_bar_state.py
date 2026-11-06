@@ -566,6 +566,136 @@ class FreeAssetsNote(unittest.TestCase):
         self.assertIn("+2 more", bar_state.free_note(list("abcdef")))
 
 
+def done_state(**kw):
+    return state(chat(status="done", reply="A room.", cost_text="34 ROUNDS · $0.38", **kw))
+
+
+def state_with_video(video, progress=0, **kw):
+    values = dict(video=video, video_job="job1", video_message="", video_seconds=0, video_progress=progress)
+    values.update(kw)
+    return done_state(**values)
+
+
+class VideoTest(unittest.TestCase):
+    def test_the_done_card_has_no_make_video_pill(self):  # the Video tab makes videos
+        self.assertFalse([a for a in done_state().actions if a.startswith("video")])
+
+    def test_video_lines(self):
+        lines = {
+            "rendering": (dict(progress=40), "Video: recording the camera move… 40%"),
+            "photos": (dict(video_message="2 of 3"), "Video: making the look (2 of 3)…"),
+            "generating": (dict(video_seconds=80), "Video: Seedance 2.5 is making it… 1:20"),
+            "done": ({}, "Video: in the Video Sequencer"),
+            "stopped": ({}, "Video stopped; it may still be billed"),
+            "failed": (dict(video_message="the provider said no"), "Video failed: the provider said no"),
+        }
+        for video, (kw, line) in lines.items():
+            with self.subTest(video):
+                s = state_with_video(video, **kw)
+                self.assertEqual(bar_state.video_line(types.SimpleNamespace(**dict(
+                    dict(video=video, video_job="job1", video_message="", video_seconds=0, video_progress=0),
+                    **{("video_progress" if k == "progress" else k): v for k, v in kw.items()}))), line)
+                self.assertTrue(s.reply.endswith(line), s.reply)
+        self.assertEqual(bar_state.video_line(types.SimpleNamespace(video="photos", video_message="")),
+                         "Video: making the look…")  # uploading, before the photos are counted
+        self.assertEqual(bar_state.video_line(chat()), "")
+
+    def test_actions_per_state(self):
+        for video in ("rendering", "photos", "generating"):
+            with self.subTest(video):
+                s = state_with_video(video)
+                self.assertIn("video_stop", s.actions)
+        for video in ("failed", "stopped"):
+            with self.subTest(video):
+                s = state_with_video(video)
+                self.assertEqual([a for a in s.actions if a.startswith("video")], ["video_retry"])
+        s = state_with_video("done")
+        self.assertEqual([a for a in s.actions if a.startswith("video")], ["video_file"])
+        self.assertEqual([bar.action_label(a, s.stages) for a in ("video_file",)], ["Show file"])
+        self.assertNotIn("video_retry", state_with_video("failed", video_job="").actions)  # nothing to retry
+
+    def test_folded_line_shows_video(self):
+        from eachlabs.ui import status_rows
+
+        self.assertIn("VIDEO 40%", status_rows._folded_line(state_with_video("rendering", 40)))
+        self.assertIn("VIDEO 1:20", status_rows._folded_line(state_with_video("generating", video_seconds=80)))
+        self.assertIn("VIDEO READY", status_rows._folded_line(state_with_video("done")))
+        self.assertNotIn("VIDEO", status_rows._folded_line(done_state()))
+
+    def test_failed_video_keeps_card_open(self):
+        self.assertFalse(bar_state.foldable(state_with_video("failed")))
+        self.assertTrue(bar_state.foldable(state_with_video("generating")))
+
+    def test_new_run_moves_video_to_status_line(self):
+        def running(**kw):
+            values = dict(running=True, status="running", stages={"layout": "active"}, round=1,
+                          tools=[{"name": "run_python", "summary": "building", "state": "running"}],
+                          video_job="job1", video_message="", video_seconds=0, video_progress=0)
+            values.update(kw)
+            return state(chat(**values))
+
+        s = running(video="generating", video_seconds=80)
+        self.assertEqual(s.mode, "building")
+        self.assertEqual(s.objects[-1], "Video: Seedance 2.5 is making it… 1:20")
+        self.assertEqual(running(video="done", thinking_since=90.0).objects, ["Video: in the Video Sequencer"])
+        self.assertEqual(running(video="rendering", video_progress=40).objects,
+                         ["Video: recording the camera move… 40%"])
+        self.assertEqual(running(video="").objects, [])
+        rows = [dict(name="car %d" % i, state="failed") for i in range(5)]
+        s = running(video="generating", objects=rows)  # the 3D jobs' lines are capped; the video's line stays
+        self.assertEqual(len(s.objects), bar_state.OBJECT_LINES + 1)
+        self.assertTrue(s.objects[-1].startswith("Video: "), s.objects)
+        self.assertEqual(running(video="generating").actions[:1], ["video_stop"])
+        self.assertEqual(running(video="done", thinking_since=90.0).actions, ["video_file"])
+        failed = running(video="failed", video_message="no")
+        self.assertEqual(failed.actions, [])  # Retry renders: it comes back after the run
+        self.assertEqual(failed.objects, ["Video failed: no · Retry when the chat finishes."])
+        self.assertEqual(running(video="stopped").objects,
+                         ["Video stopped; it may still be billed · Retry when the chat finishes."])
+        self.assertNotIn("Retry when", state_with_video("failed").reply)  # the done card offers Retry itself
+        refused = running(video="generating", code_check_state="refused")
+        self.assertEqual(refused.actions, ["video_stop", "code", "halt"])
+
+    def test_every_state_keeps_the_video_and_its_stop(self):
+        from eachlabs import plan3d
+
+        line = "Video: Seedance 2.5 is making it… 1:20"
+        video = dict(video="generating", video_job="job1", video_message="", video_seconds=80, video_progress=0)
+        plan = plan3d.parse('{"objects_3d": [{"name": "car", "description": "red car"}], "code": ["road"]}', 4)
+        cases = {
+            "unchanged": (chat(status="done", reply="Nothing.", unchanged=True, **video), {}),
+            "found": (chat(status="found", reply="Found: Kiosk", **video), {}),
+            "stopped": (chat(status="stopped", failed_stage="light", error="It broke.", stages={"light": "failed"},
+                             **video), {}),
+            "error": (chat(error="The server answered HTTP 502.", attempt="a street", **video), {}),
+            "cancelled": (chat(status="cancelled", **video), {}),
+            "key error": (chat(error=bar_state.KEY_ERRORS[0], **video), {}),
+            "consent": (chat(**video), dict(consent=True)),
+            "idle": (chat(**video), {}),
+        }
+        for name, (c, kw) in cases.items():
+            with self.subTest(name):
+                s = state(c, **kw)
+                self.assertIn(line, s.note.split("\n"), s.note)
+                self.assertIn("video_stop", s.actions)
+                self.assertEqual(s.video, "generating")
+        s = state(chat(running=True, status="running", plan=plan, plan_waiting=True, **video))
+        self.assertEqual(s.mode, "plan")
+        self.assertTrue(s.plan_note.endswith("\n" + line), s.plan_note)
+        self.assertEqual(s.actions, ["video_stop", "plan_build", "plan_cancel"])
+        failed = state(chat(status="found", reply="Found", **dict(video, video="failed", video_message="no")))
+        self.assertFalse(bar_state.foldable(failed))  # a failed video keeps any done card open
+        self.assertIn("video_retry", failed.actions)
+        done = state(chat(status="done", reply="A room.", **video))  # the done card has its own line: not twice
+        self.assertEqual(done.reply.count(line), 1)
+        self.assertNotIn(line, done.note)
+
+    def test_video_actions_are_not_advanced(self):
+        for name in ("video_stop", "video_retry", "video_file"):
+            self.assertNotIn(name, bar_state.ADVANCED_ACTIONS)
+            self.assertIn(name, bar_state._HIT_ORDER)
+
+
 class FoldTest(unittest.TestCase):
     def done(self, **kw):
         return state(chat(status="done", reply="A room.", cost_text="34 ROUNDS · 6 MIN · $0.38", **kw))

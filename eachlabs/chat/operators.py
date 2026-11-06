@@ -305,7 +305,7 @@ class EACHLABS_OT_chat_play_camera(bpy.types.Operator):
 
 
 
-from . import final_render  # noqa: E402
+from . import final_render, make_video  # noqa: E402
 
 CLASSES = (
     EACHLABS_OT_chat_send,
@@ -319,4 +319,4 @@ CLASSES = (
     EACHLABS_OT_chat_show_code,
     EACHLABS_OT_chat_plan,
     EACHLABS_OT_chat_plan_toggle,
-) + final_render.CLASSES
+) + final_render.CLASSES + make_video.CLASSES

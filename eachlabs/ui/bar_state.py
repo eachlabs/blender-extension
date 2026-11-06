@@ -3,6 +3,7 @@
 import os
 
 from . import tokens as T
+from .video_line import attach, video_actions, video_line, video_tag  # noqa: F401  (video_line: the bar's API)
 from .bar import BUDGET_ACTIONS, CONSENT_ACTIONS, PLAN_ACTIONS, BarState
 
 MAX_WIDTH = 640
@@ -12,7 +13,7 @@ BOTTOM_GAP = 36  # logical px between the bar and the region bottom
 
 KEY_ERRORS = ("Add your Eachlabs API key to start.", "API key was rejected (HTTP 401).")
 CANCELLED = "Stopped. What was built is kept."
-_HIT_ORDER = T.CAMERA_HITS + ("play_menu", "play", "frame", "final", "undo", "code", "new", "retry", "keep", "prefs", "network", "halt") + CONSENT_ACTIONS + (
+_HIT_ORDER = T.CAMERA_HITS + ("play_menu", "play", "frame", "video_stop", "video_retry", "video_file", "final", "undo", "code", "new", "retry", "keep", "prefs", "network", "halt") + CONSENT_ACTIONS + (
     T.PLAN_HITS + PLAN_ACTIONS + ("plan_limit", "plan_raise", "missing", "widen", "asked") + T.QUALITY_HITS
     + (T.TAB_CLEAR,) + T.TAB_HITS + ("settings", "quality", "send", "stop", "field", "bar"))
 
@@ -209,6 +210,7 @@ def from_chat(chat, field, focused, now, caret_on=True, spinner_phase=0.0, key_c
     s.quality_enabled = not chat.running
     if menu and s.quality_label and not chat.running and s.mode != "consent":
         s.quality_menu = quality_menu(quality)
+    attach(s, chat)  # the video in every state the done card does not cover
     _play(s, cameras, camera_menu and not s.quality_menu, playing)
     return s
 
@@ -233,8 +235,8 @@ def _play(s, cameras, menu_open, playing):
 
 def foldable(s):
     """True for a done card that may fold to one line: no choice waits on it. A run that changed nothing, an
-    edit kept from some objects, planned things not built or an open menu keep the whole card."""
-    return (s.mode == "done" and not s.error and not s.camera_menu and not s.quality_menu
+    edit kept from some objects, planned things not built, an open menu or a failed video keep the whole card."""
+    return (s.mode == "done" and not s.error and not s.camera_menu and not s.quality_menu and s.video != "failed"
             and not any(a in s.actions for a in ("widen", "missing")))
 
 
@@ -349,8 +351,12 @@ def _from_chat(chat, field, focused, now, caret_on=True, spinner_phase=0.0, key_
                                          if len(blocked) > 1 else "")
         rendering = getattr(chat, "final_render", "") == "rendering"
         final = [] if rendering else ["final"]  # one Final render at a time; Esc in its window stops it
-        s.reply = s.reply + final_line(chat) if s.reply else final_line(chat).lstrip("\n")
-        s.actions = ["play", "frame"] + final + widen + missing + partly + undo + code + ["new"]
+        video = video_line(chat)
+        tail = final_line(chat) + ("\n" + video if video else "")
+        s.reply = s.reply + tail if s.reply else tail.lstrip("\n")
+        s.video, s.video_tag = getattr(chat, "video", ""), video_tag(chat)
+        s.actions = (["play", "frame"] + video_actions(chat) + final + widen + missing + partly + undo
+                     + code + ["new"])
         return s
     elif chat.status == "cancelled":
         stopped = T.STOPPED_BILLED if getattr(chat, "billed", False) else CANCELLED
