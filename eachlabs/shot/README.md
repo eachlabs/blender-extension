@@ -22,7 +22,7 @@ Blender modules (`views`, `render`, `start`) stay thin around them.
 
 The job lives on `pipeline.REGISTRY`, so `pipeline.import_result` puts the video in the Video Sequencer like every
 video job, but into the camera's own scene rather than a workspace's sequencer scene: one playhead then drives the
-video and the camera move. Final render turns the scene's
+video and the camera move (`chat/video_window.py` plays them side by side). Final render turns the scene's
 sequencer off while it renders, so the strip never replaces the 3D picture. Prices round half up to the cent. The sidebar panel's video (`pipeline.start_video`) stays as it is. Retry never reuses renders or uploads:
 the scene may have changed in ways no check sees.
 

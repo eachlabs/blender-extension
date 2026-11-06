@@ -1,5 +1,5 @@
-"""What the bar shows about the shot video: its job's state copied into ``ChatState`` on every main-thread tick.
-No ``bpy``."""
+"""What the bar shows about the shot video: its job's state copied into ``ChatState`` on every main-thread tick;
+and when the video's window stops playing. No ``bpy``."""
 
 import os
 import re
@@ -104,3 +104,13 @@ def progress(clip_frames, clip_written, clip_done, keys, keys_written):
     done = (clip_frames if clip_done else min(clip_written, clip_frames)) + min(keys_written, keys)
     return 100 * done // total
 
+
+def stop_frame(strip_end, frame_end):
+    """The frame the video's window stops at: the strip's last (``strip_end`` is exclusive), or the scene's last
+    when the strip runs past it, since playback wraps there."""
+    return min(strip_end - 1, frame_end)
+
+
+def ends(frame, last, end):
+    """True when playback at ``frame`` is over: it reached ``end``, or it went back from ``last`` (a wrap)."""
+    return frame >= end or frame < last

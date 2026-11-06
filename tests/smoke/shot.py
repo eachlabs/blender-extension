@@ -109,8 +109,10 @@ def _bar_follows(job, clip):
     try:
         state.video, state.video_job = "rendering", job.job_id
         make_video.sync()
-        check("shot: the bar shows the finished video, with Show file",
-              state.video == "done" and bpy.types.EACHLABS_OT_chat_video_file.poll(bpy.context), state.video)
+        check("shot: the bar shows the finished video, with Show file and Open Sequencer",
+              state.video == "done" and bpy.types.EACHLABS_OT_chat_video_file.poll(bpy.context)
+              and bpy.types.EACHLABS_OT_chat_video_open.poll(bpy.context) == (bpy.context.window is not None),
+              state.video)
         state.video = "failed"
         asked = make_video._retry_price(bpy.context)
         check("shot: Retry without the bar asks with what it makes and its price for the scene as it is now",

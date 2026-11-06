@@ -866,6 +866,7 @@ crashes were seen on 4.2.23 and 5.2.2 only:
 | Strip timing names | `frame_final_start/end/duration`, `frame_duration` | `left_handle`, `right_handle`, `duration`, `content_duration` (old names removed in 6.0) | `compat.strip_start()` and friends |
 | Strip speed | `retiming_keys.add()` crashes Blender | retiming keys resolve to the wrong strip when the sequencer holds more than one strip, then crash on write | both: set the movie strip's length to `N` and add a *Speed Control* effect in *Stretch* mode |
 | Sequencer scene | the active scene | a workspace may show a separate `sequencer_scene` | import into the workspace's sequencer scene when set, else the rendered scene; a shot video goes into its camera's own scene instead, so one playhead drives the video and the camera move |
+| Shot video window (5.2.3 only so far) | the window's scene | a Sequencer shows its workspace's `sequencer_scene` | the window gets a workspace of its own (`Video Preview`) pointing at the camera's scene; the person's workspaces keep theirs (`chat/video_window.py`) |
 
 Scene building and the prompt bar. Every row was verified on Blender 4.2.23 LTS and 5.2.3 LTS
 (not on 5.2.2) and is checked by `tests/smoke.py` and `scripts/gui-check.sh` on both. The model's

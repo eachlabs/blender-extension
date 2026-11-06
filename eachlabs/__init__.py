@@ -25,6 +25,9 @@ def register():
     from .chat import playback
 
     playback.register()  # puts the view back when playback through a camera stops
+    from .chat import video_window
+
+    video_window.register()  # stops the video window's playback at the video's end
     bpy.app.handlers.load_pre.append(pipeline.on_load_pre)
     bpy.app.handlers.load_post.append(pipeline.on_load_post)
 
@@ -35,9 +38,10 @@ def unregister():
     from . import catalog, chat_run, main_thread, operators, overlay, panels, pipeline, preferences, props, viewport_marks
 
     chat_run.unregister_handlers()
-    from .chat import playback
+    from .chat import playback, video_window
 
     playback.unregister()
+    video_window.unregister()  # stops the video window's playback and its handlers
     from .shot import render_window, view_cache
 
     view_cache.forget()

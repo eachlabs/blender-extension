@@ -31,8 +31,9 @@ module; `chat_run.py` keeps the run's live state and `chat_loop.py` the stage lo
 | `playback.py` | Play through a camera: the view looks through it while playing, then the view and the scene camera go back; whether a camera moves, from its keys and its parents', and from the targets of its constraints (Track To, Child Of, a Follow Path's animated path) |
 | `play_cameras.py` | Which cameras Play lists, in what order, and each one's hint (no Blender) |
 | `final_render.py` | Final render: the scene camera once with Cycles, saved next to the `.blend`, settings put back |
-| `make_video.py` | Starting the shot video, and its operators on the bar and the sidebar: Stop, Retry (it asks with the price) and Show file |
-| `video_track.py` | A shot video job's state and stage (camera move, key frames, look, video, Sequencer) copied into the bar's video state on every main-thread tick (`pipeline.tick_hook`) and cleared when another file opens, and how far its renders are (no Blender) |
+| `make_video.py` | Starting the shot video, and its operators on the bar and the sidebar: Stop, Retry (it asks with the price), Open Sequencer and Show file |
+| `video_track.py` | A shot video job's state and stage (camera move, key frames, look, video, Sequencer) copied into the bar's video state on every main-thread tick (`pipeline.tick_hook`) and cleared when another file opens, how far its renders are, and where the video's window stops playing (no Blender) |
+| `video_window.py` | Open Sequencer's window: the video's preview, the scene through its camera and the timeline, played together from the video's first frame and stopped at its last, the scene's last, or a wrap; its tagged workspace goes when it closes |
 | `final_settings.py` | Final render's samples, aperture from the subject's size, and file name (no `bpy`) |
 | `library_use.py`, `stage_log.py`, `debug_log.py` | The helper library in a run, the local stage log, the debug log |
 | `live.py` | Late access to `chat_run`'s module state |
@@ -53,4 +54,4 @@ module; `chat_run.py` keeps the run's live state and `chat_loop.py` the stage lo
 
 `tests/test_chat_loop.py`, `tests/test_detail*.py`, `tests/test_judge.py`, `tests/test_review.py`, `tests/test_stage_log.py`,
 `tests/test_play_cameras.py`, `tests/test_video_track.py` (unit), the
-chat scenarios in `tests/smoke.py` (Blender), and the shot video's line on the bar in `tests/gui_check/video.py`.
+chat scenarios in `tests/smoke.py` (Blender), and the shot video's line on the bar and its window in `tests/gui_check/video.py`.

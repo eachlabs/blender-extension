@@ -610,8 +610,9 @@ class VideoTest(unittest.TestCase):
                 s = state_with_video(video)
                 self.assertEqual([a for a in s.actions if a.startswith("video")], ["video_retry"])
         s = state_with_video("done")
-        self.assertEqual([a for a in s.actions if a.startswith("video")], ["video_file"])
-        self.assertEqual([bar.action_label(a, s.stages) for a in ("video_file",)], ["Show file"])
+        self.assertEqual([a for a in s.actions if a.startswith("video")], ["video_open", "video_file"])
+        self.assertEqual([bar.action_label(a, s.stages) for a in ("video_open", "video_file")],
+                         ["Open Sequencer", "Show file"])
         self.assertNotIn("video_retry", state_with_video("failed", video_job="").actions)  # nothing to retry
 
     def test_folded_line_shows_video(self):
@@ -646,7 +647,7 @@ class VideoTest(unittest.TestCase):
         self.assertEqual(len(s.objects), bar_state.OBJECT_LINES + 1)
         self.assertTrue(s.objects[-1].startswith("Video: "), s.objects)
         self.assertEqual(running(video="generating").actions[:1], ["video_stop"])
-        self.assertEqual(running(video="done", thinking_since=90.0).actions, ["video_file"])
+        self.assertEqual(running(video="done", thinking_since=90.0).actions, ["video_open", "video_file"])
         failed = running(video="failed", video_message="no")
         self.assertEqual(failed.actions, [])  # Retry renders: it comes back after the run
         self.assertEqual(failed.objects, ["Video failed: no · Retry when the chat finishes."])
@@ -691,7 +692,7 @@ class VideoTest(unittest.TestCase):
         self.assertNotIn(line, done.note)
 
     def test_video_actions_are_not_advanced(self):
-        for name in ("video_stop", "video_retry", "video_file"):
+        for name in ("video_stop", "video_retry", "video_open", "video_file"):
             self.assertNotIn(name, bar_state.ADVANCED_ACTIONS)
             self.assertIn(name, bar_state._HIT_ORDER)
 

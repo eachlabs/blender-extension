@@ -7,7 +7,7 @@ import traceback
 from gpu_extras.batch import batch_for_shader
 
 from .. import chat_run, compat, preferences
-from ..chat import playback, selection
+from ..chat import playback, selection, video_window
 from . import hover, live
 from ..ui import bar, bar_state
 
@@ -88,6 +88,8 @@ def _texture(frame):
 def _draw():
     try:
         live.overlay._placed.pop(bpy.context.region.as_pointer(), None)  # no hit area unless this draw succeeds
+        if video_window.shows(bpy.context.window):  # the video's window shows the scene, not the chat
+            return
         if live.overlay.UI["fail_draw"]:
             raise RuntimeError(live.overlay.FORCED_FAILURE)
         _draw_bar(bpy.context)
