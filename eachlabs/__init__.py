@@ -38,6 +38,10 @@ def unregister():
     from .chat import playback
 
     playback.unregister()
+    from .shot import render_window, view_cache
+
+    view_cache.forget()
+    render_window.restore()  # a shot still rendering: the person's render window setting comes back
     viewport_marks.unregister()
     overlay.unregister()
     pipeline.shutdown()

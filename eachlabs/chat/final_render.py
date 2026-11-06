@@ -42,11 +42,12 @@ def _size(obj):
 def _apply(scene, subject):
     """Switch ``scene`` to the final settings; returns what to put back."""
     cycles, cam = scene.cycles, scene.camera.data
-    saved = {"engine": scene.render.engine, "frame": scene.frame_current,
+    saved = {"engine": scene.render.engine, "frame": scene.frame_current, "sequencer": scene.render.use_sequencer,
              "cycles": {k: getattr(cycles, k) for k in ("samples", "use_adaptive_sampling", "adaptive_threshold",
                                                         "use_denoising", "max_bounces", "device")},
              "dof": (cam.dof.use_dof, cam.dof.focus_object, cam.dof.aperture_fstop)}
     scene.render.engine = "CYCLES"
+    scene.render.use_sequencer = False  # a shot video's strip in this scene would replace the 3D picture
     cycles.samples, cycles.use_adaptive_sampling = final_settings.SAMPLES, True
     cycles.adaptive_threshold, cycles.use_denoising = final_settings.NOISE, True
     cycles.max_bounces = max(cycles.max_bounces, final_settings.BOUNCES)
@@ -65,6 +66,7 @@ def _apply(scene, subject):
 def _restore(scene, saved):
     cam = scene.camera.data if scene.camera is not None else None
     scene.render.engine = saved["engine"]
+    scene.render.use_sequencer = saved["sequencer"]
     for key, value in saved["cycles"].items():
         try:
             setattr(scene.cycles, key, value)

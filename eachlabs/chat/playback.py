@@ -16,13 +16,31 @@ def _cameras(scene):
     return [o for o in scene.objects if o.type == "CAMERA"]
 
 
-def _curves(obj):
-    """``[(frame, value), ...]`` per transform channel of the object and of its parents."""
+TARGET_DEPTH = 3  # how far constraint targets are followed: a camera tracking a car parented to a moving truck
+
+
+def _keys(fc):
+    return [(kp.co[0], kp.co[1]) for kp in fc.keyframe_points]
+
+
+def _curves(obj, depth=0, seen=None):
+    """``[(frame, value), ...]`` per channel that moves the object: its transform and constraint keys and its
+    parents', and the same for each constraint target (Track To, Child Of, Copy Location…), with a Follow Path
+    curve's animated path position. Read from keys only, so the bar can ask on every draw."""
+    seen = set() if seen is None else seen
     curves = []
-    while obj is not None:
+    while obj is not None and obj.name not in seen:
+        seen.add(obj.name)
         for fc in compat.object_fcurves(obj):
-            if fc.data_path in TRANSFORM:
-                curves.append([(kp.co[0], kp.co[1]) for kp in fc.keyframe_points])
+            if fc.data_path in TRANSFORM or fc.data_path.startswith("constraints["):
+                curves.append(_keys(fc))
+        for con in getattr(obj, "constraints", ()) if depth < TARGET_DEPTH else ():
+            target = getattr(con, "target", None)
+            if target is None or getattr(con, "mute", False) or not getattr(con, "enabled", True):
+                continue
+            curves += _curves(target, depth + 1, seen)
+            if con.type == "FOLLOW_PATH" and getattr(target, "data", None) is not None:
+                curves += [_keys(fc) for fc in compat.object_fcurves(target.data) if fc.data_path == "eval_time"]
         obj = obj.parent
     return curves
 
@@ -60,6 +78,15 @@ def chosen(scene):
     names = [o.name for o in _cameras(scene)]
     scene_cam = scene.camera.name if scene.camera is not None else ""
     return play_cameras.chosen(names, chat_run.STATE.play_camera, chat_camera(scene), scene_cam)
+
+
+def camera_moves(scene, name=None):
+    """True when camera ``name`` (the Play camera when ``None``) moves within the frame range: a video can be made
+    of it."""
+    cam = scene.objects.get(chosen(scene) if name is None else name)
+    if cam is None or cam.type != "CAMERA":
+        return False
+    return play_cameras.moves(_curves(cam), (scene.frame_start, scene.frame_end))
 
 
 def is_playing(context=None):

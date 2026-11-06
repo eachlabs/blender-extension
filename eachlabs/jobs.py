@@ -142,13 +142,13 @@ class Registry:
             self._updates.put((job_id, dict(fields)))
         return emit
 
-    def start(self, job, spec, client=None):
-        """Run the worker for ``job`` on a daemon thread."""
+    def start(self, job, spec, client=None, worker=None):
+        """Run ``worker`` (``run`` unless given) for ``job`` on a daemon thread."""
         emit = self.emitter(job.job_id)
-        worker = threading.Thread(target=run, args=(spec, job.cancel_event, emit, client),
+        thread = threading.Thread(target=worker or run, args=(spec, job.cancel_event, emit, client),
                                   name="eachlabs-%s" % job.job_id, daemon=True)
-        worker.start()
-        return worker
+        thread.start()
+        return thread
 
     def drain(self):
         """Apply queued updates; return jobs that just reached ``IMPORTING``.

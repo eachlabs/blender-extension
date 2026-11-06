@@ -865,7 +865,7 @@ crashes were seen on 4.2.23 and 5.2.2 only:
 | Video output | `image_settings.file_format = 'FFMPEG'` | set `image_settings.media_type = 'VIDEO'` first | `compat.set_video_output()` |
 | Strip timing names | `frame_final_start/end/duration`, `frame_duration` | `left_handle`, `right_handle`, `duration`, `content_duration` (old names removed in 6.0) | `compat.strip_start()` and friends |
 | Strip speed | `retiming_keys.add()` crashes Blender | retiming keys resolve to the wrong strip when the sequencer holds more than one strip, then crash on write | both: set the movie strip's length to `N` and add a *Speed Control* effect in *Stretch* mode |
-| Sequencer scene | the active scene | a workspace may show a separate `sequencer_scene` | import into the workspace's sequencer scene when set, else the rendered scene |
+| Sequencer scene | the active scene | a workspace may show a separate `sequencer_scene` | import into the workspace's sequencer scene when set, else the rendered scene; a shot video goes into its camera's own scene instead, so one playhead drives the video and the camera move |
 
 Scene building and the prompt bar. Every row was verified on Blender 4.2.23 LTS and 5.2.3 LTS
 (not on 5.2.2) and is checked by `tests/smoke.py` and `scripts/gui-check.sh` on both. The model's

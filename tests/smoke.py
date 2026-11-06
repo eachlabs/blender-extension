@@ -112,6 +112,8 @@ def main():
         run("export", "test_pipeline", scene, still, run("export", "out_clip", frames))
         run("export", "test_audio")
         run("export", "test_reference_flow", scene)
+        run("shot", "test_shot_flow", scene)
+        run("shot", "test_still_shot", scene)
         run("steps", "test_asked_colour")
         run("play", "test_final_render")
         run("play", "test_play_through_camera")

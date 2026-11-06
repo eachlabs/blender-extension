@@ -48,11 +48,14 @@ class FakeClient:
 
     Set ``FakeClient.results["next"]`` to the file to "download" and ``FakeClient.statuses["next"]``
     to the status polls return; ``FakeClient.fail_create`` makes submission fail with that error.
+    ``FakeClient.by_model[slug]`` gives that model's predictions their own result file instead.
     """
 
     log = []
     statuses = {}
     results = {}
+    by_model = {}
+    _models = {}  # prediction id -> model
     fail_create = None
     draft_id = None  # When set, outputs come back as {"video_url", "draft_id"} like a Seedance draft.
 
@@ -70,12 +73,15 @@ class FakeClient:
         if FakeClient.fail_create:
             raise api_client.ApiError(FakeClient.fail_create, status=401)
         FakeClient.log.append(("create", model, values))
-        return "pred-%d" % len(FakeClient.log)
+        prediction_id = "pred-%d" % len(FakeClient.log)
+        FakeClient._models[prediction_id] = model
+        return prediction_id
 
     def get_prediction(self, prediction_id, timeout=None):
         status = FakeClient.statuses.get("next", "success")
         if status == "success":
-            url = "https://fake.invalid/" + os.path.basename(FakeClient.results["next"])
+            path = FakeClient.by_model.get(FakeClient._models.get(prediction_id)) or FakeClient.results["next"]
+            url = "https://fake.invalid/" + os.path.basename(path)
             output = {"video_url": url, "draft_id": FakeClient.draft_id} if FakeClient.draft_id else url
             return {"status": "success", "output": output, "metrics": {"cost": 0.1}}
         return {"status": status}

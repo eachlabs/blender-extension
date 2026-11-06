@@ -27,6 +27,25 @@ BOX_EDGES = ((0, 1), (1, 2), (2, 3), (3, 0), (4, 5), (5, 6), (6, 7), (7, 4), (0,
 MOVING, STILL = chat_loop.CAMERA_MOVING, chat_loop.CAMERA_STILL
 
 
+def projected_box(obj, depsgraph, scene, cam_eval, near):
+    """``(x0, x1, y0, y1, cut_by_near_plane)`` of an object's bounding box in view coordinates, not clipped to the
+    frame (0..1), or ``None`` when all of it is behind the camera."""
+    ev = obj.evaluated_get(depsgraph)
+    corners = [ev.matrix_world @ Vector(c) for c in ev.bound_box]
+    projected = [world_to_camera_view(scene, cam_eval, c) for c in corners]
+    front = [p for p in projected if p.z > near]
+    if not front:
+        return None
+    clipped = len(front) < len(projected)
+    for a, b in BOX_EDGES:  # where an edge crosses the near plane, so a box the camera is in still counts
+        za, zb = projected[a].z, projected[b].z
+        if (za > near) != (zb > near):
+            t = (za - near) / (za - zb)
+            front.append(world_to_camera_view(scene, cam_eval, corners[a].lerp(corners[b], t)))
+    return (min(p.x for p in front), max(p.x for p in front), min(p.y for p in front), max(p.y for p in front),
+            clipped)
+
+
 class CameraView:
     def _camera_keys(self):
         """The scene camera's location keys, the frame range and its move, when the camera is the run's."""
@@ -256,20 +275,10 @@ class CameraView:
     @staticmethod
     def _rect(obj, depsgraph, scene, cam_eval, near):
         """``("behind" | "outside" | "visible", rect, cut_off)`` for an object's bounding box in the frame."""
-        ev = obj.evaluated_get(depsgraph)
-        corners = [ev.matrix_world @ Vector(c) for c in ev.bound_box]
-        projected = [world_to_camera_view(scene, cam_eval, c) for c in corners]
-        front = [p for p in projected if p.z > near]
-        if not front:
+        box = projected_box(obj, depsgraph, scene, cam_eval, near)
+        if box is None:
             return "behind", None, False
-        clipped = len(front) < len(projected)
-        for a, b in BOX_EDGES:  # where an edge crosses the near plane, so a box the camera is in still counts
-            za, zb = projected[a].z, projected[b].z
-            if (za > near) != (zb > near):
-                t = (za - near) / (za - zb)
-                front.append(world_to_camera_view(scene, cam_eval, corners[a].lerp(corners[b], t)))
-        x0, x1 = min(p.x for p in front), max(p.x for p in front)
-        y0, y1 = min(p.y for p in front), max(p.y for p in front)
+        x0, x1, y0, y1, clipped = box
         if x1 < 0 or x0 > 1 or y1 < 0 or y0 > 1:
             return "outside", None, False
         cut = clipped or x0 < 0 or x1 > 1 or y0 < 0 or y1 > 1
