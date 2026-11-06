@@ -359,6 +359,9 @@ def on_load_pre(*_args):
     chat_run.reset_view()
     render_export.cancel_pending()
     REGISTRY.cancel_all("Cancelled because another file was opened.")
+    from .shot import view_cache
+
+    view_cache.forget()  # the new file's scenes and cameras may carry the same names
 
 
 @bpy.app.handlers.persistent

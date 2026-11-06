@@ -287,6 +287,20 @@ class RegistryTest(unittest.TestCase):
             self.assertEqual(registry.drain(), [job])
             self.assertEqual(job.outputs[0][1], "image")
 
+    def test_start_runs_the_given_worker(self):
+        registry = jobs.Registry()
+        job = registry.add(jobs.Job("j1", "SHOT", "x", "model", state=jobs.UPLOADING))
+        seen = []
+
+        def worker(spec, cancel, emit, client=None):
+            seen.append((spec, client))
+            emit({"state": jobs.IMPORTING, "outputs": [("/tmp/v.mp4", "video")]})
+
+        thread = registry.start(job, "spec", client="client", worker=worker)
+        thread.join(5)
+        self.assertEqual(seen, [("spec", "client")])
+        self.assertEqual(registry.drain(), [job])
+
     def test_format_elapsed(self):
         self.assertEqual(jobs.format_elapsed(5), "0:05")
         self.assertEqual(jobs.format_elapsed(125), "2:05")

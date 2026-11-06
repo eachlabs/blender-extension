@@ -28,7 +28,7 @@ module; `chat_run.py` keeps the run's live state and `chat_loop.py` the stage lo
 | `events.py`, `lifecycle.py`, `state.py`, `run_types.py` | Events applied on the main thread, the run's state and what it gives back |
 | `scene_state.py`, `undo_watch.py`, `viewport.py`, `show_code.py` | The scene and viewport around a run, undo, and Show code |
 | `operators.py` | The chat's Blender operators |
-| `playback.py` | Play through a camera: the view looks through it while playing, then the view and the scene camera go back |
+| `playback.py` | Play through a camera: the view looks through it while playing, then the view and the scene camera go back; whether a camera moves, from its keys and its parents', and from the targets of its constraints (Track To, Child Of, a Follow Path's animated path) |
 | `play_cameras.py` | Which cameras Play lists, in what order, and each one's hint (no Blender) |
 | `final_render.py` | Final render: the scene camera once with Cycles, saved next to the `.blend`, settings put back |
 | `final_settings.py` | Final render's samples, aperture from the subject's size, and file name (no `bpy`) |

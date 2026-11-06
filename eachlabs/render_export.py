@@ -9,6 +9,7 @@ import os
 import shutil
 
 import bpy
+import mathutils
 
 from . import compat, main_thread, thread_safety, timing
 
@@ -45,13 +46,22 @@ def _owner(scene, path):
     return owner
 
 
-def snapshot(scene):
+def snapshot(scene, extra=()):
+    """The settings a render changes, plus ``extra`` ``(path, attribute)`` pairs; arrays are copied."""
     saved = []
-    for path, attr in _SETTINGS:
+    for path, attr in _SETTINGS + tuple(extra):
         owner = _owner(scene, path)
         if hasattr(owner, attr):
-            saved.append((path, attr, getattr(owner, attr)))
+            value = getattr(owner, attr)
+            saved.append((path, attr, _copy(value)))
     return saved
+
+
+def _copy(value):
+    """A value that stays put: arrays and colours read from Blender change with the setting they come from."""
+    if isinstance(value, (mathutils.Color, mathutils.Vector, mathutils.Euler, mathutils.Quaternion)):
+        return value.copy()
+    return tuple(value) if type(value).__name__ == "bpy_prop_array" else value
 
 
 def restore(scene, saved):
@@ -158,14 +168,15 @@ def _viewport_render(context, animation):
         bpy.ops.render.opengl(animation=animation, write_still=not animation, view_context=False)
 
 
-def _run(context, scene, configure, animation, mode, on_done, on_fail):
-    """Configure, render and hand control back. Returns an error string if it could not start."""
+def _run(context, scene, configure, animation, mode, on_done, on_fail, extra=()):
+    """Configure, render and hand control back. Returns an error string if it could not start. ``extra``: more
+    ``(path, attribute)`` settings ``configure`` changes, restored with the rest."""
     global _pending
     if busy():
         return "Another render is running; wait for it to finish."
     if mode == VIEWPORT and _view3d(context)[1] is not None and thread_safety.ops_override_unsafe():
         return thread_safety.WAIT_FOR_CHAT  # the viewport snapshot runs under temp_override
-    saved = snapshot(scene)
+    saved = snapshot(scene, extra)
     try:
         expected = configure(scene)
     except Exception:
