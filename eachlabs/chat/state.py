@@ -55,6 +55,14 @@ class ChatState:
     free_assets: tuple = ()  # names of the Poly Haven skies and textures the last run used
     billed: bool = False  # a 3D run was already going when the add-on stopped waiting for it: it may still bill
     play_camera: str = ""  # the camera the person chose for Play; "": the chat's camera, else the scene camera
+    video: str = ""  # the shot video: "" | rendering | photos | generating | done | failed | stopped | too_long
+    video_job: str = ""  # its job on ``pipeline.REGISTRY``
+    video_message: str = ""  # "2 of 3" while the photos are made; the reason when it failed
+    video_seconds: int = 0  # seconds the video model has been making it
+    video_progress: int = 0  # percent of the renders written while it records the camera move
+    video_since: float = 0.0  # time.monotonic() when the video model started
+    video_stage: str = ""  # the stage it is at, failed or stopped at: camera | keys | look | video | sequencer
+    video_info: dict = field(default_factory=dict)  # the video made last: seconds, photos, price, started, ended
 
 
 

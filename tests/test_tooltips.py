@@ -33,6 +33,10 @@ class TextsTest(unittest.TestCase):
                 if hit_id != "bar":
                     self.assertTrue(tooltips.text(hit_id), (name, hit_id))
 
+    def test_video_tooltips_exist(self):
+        for hit_id in ("video_stop", "video_retry", "video_file"):
+            self.assertTrue(tooltips.text(hit_id), hit_id)
+
     def test_the_approved_texts(self):
         self.assertEqual(tooltips.text("tab_scene"), "Scene: build a whole scene with its camera move, or change "
                          "anything in it. Start here with a description of the place you imagine.")

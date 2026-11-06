@@ -99,51 +99,98 @@ def _stopped(scene, plan):
           and not os.path.isdir(os.path.join(WORK, "stopped_clip_frames")), "%s %s" % (calls, os.listdir(folder)))
 
 
+def _bar_follows(job, clip):
+    """The done card follows the finished job."""
+    from eachlabs import chat_run
+    from eachlabs.chat import make_video
+
+    state = chat_run.STATE
+    saved = (state.video, state.video_job)
+    try:
+        state.video, state.video_job = "rendering", job.job_id
+        make_video.sync()
+        check("shot: the bar shows the finished video, with Show file",
+              state.video == "done" and bpy.types.EACHLABS_OT_chat_video_file.poll(bpy.context), state.video)
+        state.video = "failed"
+        asked = make_video._retry_price(bpy.context)
+        check("shot: Retry without the bar asks with what it makes and its price for the scene as it is now",
+              asked is not None and "Total $" in asked[0] and "It may still be billed after Stop." in asked[0]
+              and len(asked[1]) == 2, str(asked))
+    finally:
+        state.video, state.video_job = saved
+
+
 def _digest(path):
     with open(path, "rb") as handle:
         return hashlib.sha256(handle.read()).hexdigest()
 
 
-def _retry_renders_again(job, teapot):
-    """The scene changes after the first video, so Retry renders again, and its video lands in the Sequencer. An
-    object changed after the upload leaves the uploaded clip alone."""
-    shot = job.context["shot"]
+def _retry_while_chat_runs(job, teapot):
+    """The scene changes after the first video, so Retry renders again. While that video is made, a new chat run
+    starts: the video stays, its line moves to the bar's status line, and it still lands in the Sequencer. An object
+    changed after the upload leaves the uploaded clip alone."""
+    from eachlabs import chat_run
+    from eachlabs.ui import bar_state
+    from eachlabs.ui.text_field import TextField
+    from tests.blender_fakes import FakeLLM, text_reply
+    from tests.smoke.chat_common import _chat_drive
+
+    def bar():
+        return bar_state.from_chat(state, TextField([], mac=False), False, time.monotonic())
+
+    shot, state = job.context["shot"], chat_run.STATE
     first = _digest(shot["clip"])
-    other_scene = bpy.data.scenes.new("eachlabs_shot_other")
+    saved = (state.video, state.video_job)
+    chat_scene = bpy.data.scenes.new("eachlabs_shot_chat")
     teapot.location.x += 1.5  # the scene changed after the first video
     uploads = _uploads()
     jobs_before = len(pipeline.REGISTRY.jobs)
-    FakeClient.statuses["next"] = "processing"  # the photos wait on each::labs until the scene changed again
+    FakeClient.statuses["next"] = "processing"  # the photos wait on each::labs until the chat run is over
     try:
         try:
-            start.rerun(types.SimpleNamespace(scene=other_scene), job.job_id)
+            start.rerun(types.SimpleNamespace(scene=chat_scene), job.job_id)
             refused = ""
         except pipeline.Problem as exc:
             refused = str(exc)
         check("shot: Retry from another scene is refused and names the video's scene",
               job.context["scene"] in refused and len(pipeline.REGISTRY.jobs) == jobs_before, refused)
         again = start.rerun(bpy.context, job.job_id)
+        state.video, state.video_job = "rendering", again.job_id
         drive(again.job_id, lambda j: j.state == jobs.RUNNING and j.message.startswith("Making the look"), timeout=180)
         redone = again.context.get("shot", {})
         sent = _digest(redone["clip"]) if os.path.isfile(redone.get("clip", "")) else ""
         check("shot: Retry after a scene change renders again: a new clip and new key frames",
               redone.get("clip") != shot["clip"] and sent and sent != first and len(redone.get("renders", [])) == 2
               and set(redone["renders"]).isdisjoint(shot["renders"]), str(redone.get("renders")))
+        check("shot: the main thread's tick copies the job to the bar, with nothing drawn",
+              state.video == "photos" and state.video_message == "1 of 2", "%s %r" % (state.video, state.video_message))
 
         teapot.location.x += 1.5  # after the upload: the running job no longer reads the scene
         uploaded = _uploads()
+        FakeClient.chat_llm = FakeLLM([text_reply("Nothing to change.")])
+        chat_run.start(types.SimpleNamespace(scene=chat_scene, preferences=bpy.context.preferences), "a bench")
+        shown = bar()
+        check("shot: a new chat run keeps the video, and its line moves to the bar's status line",
+              state.running and (state.video, state.video_job) == ("photos", again.job_id)
+              and shown.objects[-1:] == ["Video: making the look (1 of 2)…"],
+              "%s %s %s %s" % (state.running, state.video, shown.mode, shown.objects))
+        _chat_drive()
         FakeClient.statuses["next"] = "success"
         drive(again.job_id, lambda j: not j.active, timeout=120)
         editor = bpy.data.scenes[again.context["scene"]].sequence_editor
         strip = next((s for s in compat.all_strips(editor) if s.name == "EL " + again.job_id), None) if editor else None
-        check("shot: Retry's video lands in the Sequencer, made from the same request",
-              again.state == jobs.DONE and strip is not None and redone.get("request") == shot.get("request")
-              and _uploads() == uploads + 3, "%s, %d new uploads" % (again.error or again.message, _uploads() - uploads))
+        check("shot: after the chat run the video still lands in the Sequencer, and the bar says so",
+              again.state == jobs.DONE and strip is not None and state.video == "done"
+              and redone.get("request") == shot.get("request") and _uploads() == uploads + 3,
+              "%s %s, %d new uploads" % (again.error or again.message, state.video, _uploads() - uploads))
         check("shot: an object changed after the upload renders and uploads nothing again: the clip file is the same",
               _digest(redone["clip"]) == sent and _uploads() == uploaded, "%d uploads after" % (_uploads() - uploaded))
     finally:
         FakeClient.statuses["next"] = "success"
-        bpy.data.scenes.remove(other_scene)
+        chat_run.cancel(drop_build=True)
+        chat_run.reset_view()
+        bpy.data.scenes.remove(chat_scene)
+        state.video, state.video_job = saved
 
 
 def _no_chat_build():
@@ -297,7 +344,9 @@ def test_shot_flow(scene):
             check("shot: the video lands in the camera's own scene, at the move's first frame",
                   job.state == jobs.DONE and strip is not None and job.context.get("sequencer_scene") == scene.name
                   and compat.strip_start(strip) == scene.frame_start, job.error or job.message)
-            _retry_renders_again(job, always[0])
+            _bar_follows(job, clip)
+
+            _retry_while_chat_runs(job, always[0])
         finally:
             view.render_display_type = shown
             FakeClient.by_model.clear()

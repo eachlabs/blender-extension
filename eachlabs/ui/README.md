@@ -13,6 +13,7 @@ The prompt bar's pixels and text, with no Blender code. The bar is drawn with Sk
 | `action_rows.py` | Action pills (Play split with its camera menu part, Pause), the consent card, the plan card with its chips |
 | `tab_row.py` | Scene, Assets and Characters above the input, the line under them saying what the next prompt does, and the chip of the selected thing it changes |
 | `input_rows.py` | The prompt field, the send button and the hint; the menus' rows (quality, cameras) |
+| `video_line.py` | The shot video on the bar: its line on the done card, on the status line while a chat run goes, or in the note otherwise; its part of the folded line; and its pills |
 | `tooltips.py` | What each control says on hover, keyed by hit id; the sidebar's buttons use the same texts |
 | `tooltip_card.py` | The tooltip card: its wrapped lines, where it sits over its control in the 3D view, and its pixels |
 | `draw.py` | Drawing helpers: paints, text, icons, the spinner, the mark |
@@ -23,7 +24,7 @@ The prompt bar's pixels and text, with no Blender code. The bar is drawn with Sk
 ## Neighbours
 
 - **Called by** `viewport/` (drawing and input) and `overlay.py`.
-- **Calls** Skia only.
+- **Calls** Skia, and reads the video model's name from `shot/models.py`.
 
 ## Keep out
 

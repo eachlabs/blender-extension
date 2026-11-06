@@ -174,7 +174,10 @@ CHAT_ACTIONS = {"retry": ("eachlabs.chat_retry_stage", "FILE_REFRESH"), "undo": 
                 "frame": ("eachlabs.chat_frame_result", "ZOOM_SELECTED"), "play": ("eachlabs.chat_play", "PLAY"),
                 "prefs": ("eachlabs.open_preferences", "PREFERENCES"),
                 "network": ("eachlabs.open_preferences", "PREFERENCES"), "new": ("eachlabs.chat_new_scene", "ADD"),
-                "code": ("eachlabs.chat_show_code", "TEXT"), "final": ("eachlabs.chat_final_render", "RENDER_STILL")}
+                "code": ("eachlabs.chat_show_code", "TEXT"), "final": ("eachlabs.chat_final_render", "RENDER_STILL"),
+                "video_stop": ("eachlabs.chat_video_stop", "CANCEL"),
+                "video_retry": ("eachlabs.chat_video_retry", "FILE_REFRESH"),
+                "video_file": ("eachlabs.chat_video_file", "FILEBROWSER")}
 
 
 def draw_chat(layout, context):
@@ -239,7 +242,8 @@ def draw_chat(layout, context):
                 if state.play_camera and not state.playing:
                     sub.operator_menu_enum("eachlabs.chat_play_camera", "camera", text="", icon="CAMERA_DATA")
                 continue
-            props = row.operator(idname, text=bar.action_label(action, state.stages, state.undo_stage), icon=icon)
+            props = row.operator(idname, text=bar.action_label(action, state.stages, state.undo_stage),
+                                 icon=icon)
             if action == "network":
                 props.section = "SYSTEM"
 
