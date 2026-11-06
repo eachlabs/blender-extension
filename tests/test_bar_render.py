@@ -765,7 +765,7 @@ class PlanRenderTest(QualityPickerRenderTest):
 
 
 class TabRowRenderTest(unittest.TestCase):
-    def test_three_tabs_above_the_input_fit_at_every_width(self):
+    def test_the_tabs_above_the_input_fit_at_every_width_and_wrap_in_reading_order(self):
         os.makedirs(SNAPSHOTS, exist_ok=True)
         state = bar.BarState(mode="idle", field=field(), tab="asset", quality_label="Prototype")
         for width in (640, 240):
@@ -775,8 +775,9 @@ class TabRowRenderTest(unittest.TestCase):
                 for hit_id in tokens.TAB_HITS:
                     self.assertTrue(inside(frame.hits[hit_id], frame.bar_rect), hit_id)
                     self.assertLess(frame.hits[hit_id][1], frame.hits["field"][1])  # above the input
-                lefts = [frame.hits[h][0] for h in tokens.TAB_HITS]
-                self.assertEqual(lefts, sorted(lefts))
+                places = [(frame.hits[h][1], frame.hits[h][0]) for h in tokens.TAB_HITS]
+                self.assertEqual(places, sorted(places))  # line by line, left to right
+                self.assertEqual(len({y for y, _x in places}), 1 if width == 640 else 2)
                 controls = {k: v for k, v in frame.hits.items() if k != "bar"}
                 keys = sorted(controls)
                 for i, a in enumerate(keys):

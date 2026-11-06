@@ -362,9 +362,11 @@ def on_load_pre(*_args):
     render_export.cancel_pending()
     REGISTRY.cancel_all("Cancelled because another file was opened.")
     video_track.forget(chat_run.STATE)  # its Retry would render the new file's scene
+    from .chat import video_tab
     from .shot import view_cache
 
     view_cache.forget()  # the new file's scenes and cameras may carry the same names
+    video_tab.forget()
 
 
 @bpy.app.handlers.persistent

@@ -63,6 +63,10 @@ class ChatState:
     video_since: float = 0.0  # time.monotonic() when the video model started
     video_stage: str = ""  # the stage it is at, failed or stopped at: camera | keys | look | video | sequencer
     video_info: dict = field(default_factory=dict)  # the video made last: seconds, photos, price, started, ended
+    video_camera: str = ""  # the Video tab's settings: its camera ("": the Play camera), aspect, resolution
+    video_aspect: str = "16:9"
+    video_resolution: str = "480p"
+    video_length: int = 0  # its duration in seconds; 0: the move's length, or a still shot's default
 
 
 

@@ -2,6 +2,7 @@
 
 from .fonts import clamp, cut, measure, wrap
 from . import tokens as T
+from . import video_texts as V
 from .draw import _RUNNING, _draw_mark, _icon, _paint, _text
 
 
@@ -25,6 +26,8 @@ def placeholder(state):
         return T.PLACEHOLDER_ASSET_CHANGE % state.thing if state.thing else T.PLACEHOLDER_ASSET
     if state.tab == "character":
         return T.PLACEHOLDER_CHARACTER_CHANGE % state.thing if state.thing else T.PLACEHOLDER_CHARACTER
+    if state.tab == "video":
+        return V.PLACEHOLDER
     return T.PLACEHOLDER_NEXT if state.has_scene else T.PLACEHOLDER_FIRST
 
 
@@ -241,6 +244,8 @@ def _draw_button(canvas, state, x, y, hits):
         hits["send"] = (x, y, d, d)
     else:
         canvas.restore()
+        if state.send_tip:  # no action, only its tooltip saying why
+            hits[V.SEND_OFF] = (x, y, d, d)
 
 
 

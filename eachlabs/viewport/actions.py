@@ -5,8 +5,8 @@ import time
 
 from .. import chat_run, compat, preferences
 from . import draw, live
-from ..chat import selection
-from ..ui import bar_state, tokens as T
+from ..chat import selection, video_tab
+from ..ui import bar_state, tokens as T, video_texts as V
 
 
 def focus(context=None):
@@ -18,8 +18,33 @@ def focus(context=None):
 
 
 
+def close_menus():
+    ui = live.overlay.UI
+    ui["quality_menu"] = ui["camera_menu"] = False
+    ui["video_menu"] = ""
+
+
 def blur():
-    live.overlay.UI["focused"] = live.overlay.UI["quality_menu"] = live.overlay.UI["camera_menu"] = False
+    live.overlay.UI["focused"] = False
+    close_menus()
+    draw.tag_redraw()
+
+
+def show_tab(context, target):
+    """Switch the bar to the tab ``target``; the field keeps each tab's own text. Opening Video measures what its
+    camera sees, once."""
+    ui, field = live.overlay.UI, live.overlay.FIELD
+    state = chat_run.STATE
+    if chat_run.STATE.running or target == state.target:
+        return
+    ui["tab_text"][state.target] = field.text
+    field.clear()
+    field.paste(ui["tab_text"].pop(target, ""))
+    state.target = target
+    close_menus()
+    ui["video_confirm"] = ui["video_stop_ask"] = ui["video_changed"] = False
+    if target == "video":
+        video_tab.opened(context, ui)
     draw.tag_redraw()
 
 
@@ -37,6 +62,11 @@ def submit(context):
     """Enter or the send button: start a run with the field's text; keep the text when it is refused. Before
     the first run the consent card opens instead, and the prompt waits in the field. An empty field does
     nothing: the placeholder says what to type."""
+    if not chat_run.STATE.running and chat_run.STATE.target == "video":  # the Video tab asks first, in the bar
+        live.overlay.UI["quality_menu"] = False
+        video_tab.ask(context, live.overlay.UI, live.overlay.FIELD)
+        draw.tag_redraw()
+        return False
     if chat_run.STATE.running or not draw.current_state().send_enabled or not live.overlay.FIELD.text.strip():
         return False
     live.overlay.UI["quality_menu"] = False
@@ -113,7 +143,7 @@ def _act(context, name):
     camera = bar_state.camera_picked(name, draw.current_state().camera_menu) if name in T.CAMERA_HITS else None
     if name == "quality":  # the menu opens with the keys, so Esc closes it
         live.overlay.UI["quality_menu"] = not live.overlay.UI["quality_menu"] and not chat_run.STATE.running
-        live.overlay.UI["camera_menu"] = False
+        live.overlay.UI["camera_menu"], live.overlay.UI["video_menu"] = False, ""
         if live.overlay.UI["quality_menu"] and not live.overlay.UI["focused"]:
             focus(context)
     elif name == "play_menu":  # the same: the camera menu opens with the keys
@@ -134,8 +164,13 @@ def _act(context, name):
     elif name == T.TAB_CLEAR:  # the chip's cross: nothing selected, so the next prompt adds
         selection.clear(context)
     elif name in T.TAB_HITS:
-        if not chat_run.STATE.running:
-            chat_run.STATE.target = T.TABS[T.TAB_HITS.index(name)][0]
+        show_tab(context, T.TABS[T.TAB_HITS.index(name)][0])
+    elif name == V.SEND_OFF:
+        pass  # only its tooltip: why Send is off
+    elif name in V.HITS or (chat_run.STATE.target == "video" and name in ("video_stop", "video_retry")):
+        live.overlay.UI["quality_menu"] = False
+        if video_tab.act(context, name, live.overlay.UI, live.overlay.FIELD) and not live.overlay.UI["focused"]:
+            focus(context)
     elif name == "send":
         submit(context)
     elif name == "missing":

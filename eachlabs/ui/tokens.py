@@ -41,7 +41,7 @@ PLACEHOLDER_ASSET_CHANGE = "Change %s: make it walnut, move it to the window…"
 PLACEHOLDER_CHARACTER = "Add a character: a ginger cat asleep by the fire…"
 PLACEHOLDER_CHARACTER_CHANGE = "Change %s: make it bigger, let it sleep…"
 # The tab row above the input: what the next prompt builds. (target, label), in this order.
-TABS = (("scene", "Scene"), ("asset", "Assets"), ("character", "Characters"))
+TABS = (("scene", "Scene"), ("asset", "Assets"), ("character", "Characters"), ("video", "Video"))
 TAB_HITS = tuple("tab_" + target for target, _label in TABS)
 TAB_TEXT = WHITE + (0.70,)
 # The line under the tabs: what the next prompt does (the chosen tab names itself). %s is the selected thing.

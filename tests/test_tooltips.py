@@ -34,8 +34,16 @@ class TextsTest(unittest.TestCase):
                     self.assertTrue(tooltips.text(hit_id), (name, hit_id))
 
     def test_video_tooltips_exist(self):
-        for hit_id in ("video_stop", "video_retry", "video_open", "video_file"):
+        from eachlabs.ui import video_texts as V
+
+        for hit_id in ("tab_video", "video_stop", "video_retry", "video_open", "video_file") + V.HITS:
             self.assertTrue(tooltips.text(hit_id), hit_id)
+
+    def test_a_dimmed_send_says_why(self):
+        from eachlabs.ui import bar, video_texts as V
+
+        state = bar.BarState(send_enabled=False, send_tip=V.NO_CAMERA)
+        self.assertEqual(tooltips.text(V.SEND_OFF, state), V.NO_CAMERA)
 
     def test_the_approved_texts(self):
         self.assertEqual(tooltips.text("tab_scene"), "Scene: build a whole scene with its camera move, or change "

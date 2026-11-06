@@ -692,7 +692,7 @@ class VideoTest(unittest.TestCase):
         self.assertNotIn(line, done.note)
 
     def test_video_actions_are_not_advanced(self):
-        for name in ("video_stop", "video_retry", "video_open", "video_file"):
+        for name in ("video_stop", "video_retry", "video_open", "video_file", "video_make", "video_another"):
             self.assertNotIn(name, bar_state.ADVANCED_ACTIONS)
             self.assertIn(name, bar_state._HIT_ORDER)
 

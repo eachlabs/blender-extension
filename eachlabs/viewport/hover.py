@@ -87,10 +87,12 @@ def draw_tip(region, origin, frame, scale, left_px=0, right_px=0):
     ptr = region.as_pointer()
     live.overlay._tip_placed.pop(ptr, None)
     hover = ui["hover"]
-    if not ui["tip"] or hover is None or hover[0] != ptr or ui["quality_menu"] or ui["camera_menu"]:
+    if (not ui["tip"] or hover is None or hover[0] != ptr or ui["quality_menu"] or ui["camera_menu"]
+            or ui["video_menu"]):
         return
     rect = frame.hits.get(hover[1])
-    text = tooltips.text(hover[1])
+    placed = live.overlay._placed.get(ptr)
+    text = tooltips.text(hover[1], placed[4] if placed else None)
     if rect is None or not text:
         return
     cache = live.overlay._tip_cache

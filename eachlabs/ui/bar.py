@@ -46,6 +46,7 @@ from .input_rows import (  # noqa: F401
 )
 from .status_rows import _status_rows, error_lines  # noqa: F401
 from .tab_row import tab_row
+from . import video_rows
 
 try:
     import skia
@@ -55,7 +56,7 @@ except ImportError:  # The bar is not drawn; ``available()`` says so.
 
 @dataclasses.dataclass
 class BarState:
-    mode: str = "idle"  # idle | typing | building | done | error | stopped | waiting | consent
+    mode: str = "idle"  # idle | typing | building | done | error | stopped | waiting | consent | plan | video
     field: TextField = dataclasses.field(default_factory=TextField)
     stages: dict = dataclasses.field(default_factory=dict)  # stage -> todo | active | done | failed | cancelled
     status: str = ""
@@ -96,8 +97,24 @@ class BarState:
     playing: bool = False  # the animation plays: the Play button reads Pause
     camera_menu: list = dataclasses.field(default_factory=list)  # (name, hint, chosen) per camera while it is open
     folded: bool = False  # the done card shows one line (Done and the cost); the mouse on the bar opens it
-    video: str = ""  # the shot video's state (``ChatState.video``)
+    video: str = ""  # the shot video's state (``ChatState.video``); names the Make video pill
     video_tag: str = ""  # the video's part of the folded line: "Video 40%"
+    send_tip: str = ""  # why the send button is dimmed: its tooltip
+    labels: dict = dataclasses.field(default_factory=dict)  # action -> pill text, over the usual one
+    primary: tuple = ()  # actions drawn as primary pills on this state, besides ``tokens.PRIMARY_ACTIONS``
+    # The Video tab (``ui/video_tab.py``): its card above the tabs, the chips' menu, the chips and their notes.
+    video_card: str = ""  # "" | confirm | progress | ready | failed | stopped
+    video_meta: str = ""  # the card's meta: "TOTAL $1.45 · …", "0:41 · $1.45"
+    video_text: str = ""  # the card's sentence
+    video_line: str = ""  # the spinner's line while it is made
+    video_error: str = ""  # why it failed, or that it stopped
+    video_ask: str = ""  # "Stop the video? …" while Stop waits for an answer
+    video_chips: list = dataclasses.field(default_factory=list)  # (hit id, label) per settings chip
+    video_price: str = ""  # "≈ $1.45" at the right of the chips
+    video_notes: list = dataclasses.field(default_factory=list)  # the lines under the chips
+    video_menu_title: str = ""
+    video_menu: list = dataclasses.field(default_factory=list)  # (name, hint, chosen) of the open chip's menu
+    video_open_chip: str = ""  # the chip whose menu is open
 
 
 @dataclasses.dataclass
@@ -121,6 +138,11 @@ class Frame:
 
 def _rows(state, width):
     """Every row above the input row, top to bottom."""
+    if state.mode == "video":
+        rows = video_rows.rows(state, width)
+        if state.quality_label and not quality_inline(state, width):
+            rows.append(_quality_row(state, width))
+        return rows
     if state.quality_menu and state.mode not in _RUNNING + ("consent", "plan"):
         rows = _menu_rows(state, width)
     elif state.mode == "plan":
@@ -166,6 +188,9 @@ def render(state, width, scale):
     state = dataclasses.replace(state, reply=clean(state.reply), error=clean(state.error), status=clean(state.status),
                                 note=clean(state.note), plan_3d=clean(state.plan_3d), plan_code=clean(state.plan_code),
                                 plan_note=clean(state.plan_note), plan_looks=clean(state.plan_looks),
+                                video_text=clean(state.video_text), video_error=clean(state.video_error),
+                                video_chips=[(h, clean(t)) for h, t in state.video_chips],
+                                video_menu=[(clean(n), clean(h), c) for n, h, c in state.video_menu],
                                 plan_chips=[(i, clean(t), m, c) for i, t, m, c in state.plan_chips],
                                 objects=[" ".join(clean(line).split()) for line in state.objects])
     inner = width - T.PAD_LEFT - T.PAD_RIGHT

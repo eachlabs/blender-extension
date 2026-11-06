@@ -27,7 +27,7 @@ def forget(chat):
     """Clear the video from ``chat``: another file was opened, so its scene and camera are gone."""
     chat.video, chat.video_job, chat.video_message = "", "", ""
     chat.video_seconds, chat.video_progress, chat.video_since = 0, 0, 0.0
-    chat.video_stage, chat.video_info = "", {}
+    chat.video_stage, chat.video_info, chat.video_camera = "", {}, ""
 
 
 def _shown(chat):

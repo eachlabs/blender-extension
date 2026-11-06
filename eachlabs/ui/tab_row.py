@@ -1,10 +1,11 @@
-"""The bar's tab row: Scene, Assets and Characters above the input, the chosen one marked, and a line under them
+"""The bar's tab row: Scene, Assets, Characters and Video above the input, the chosen one marked, and a line under them
 saying what the next prompt does, with a chip for the selected thing it changes. Dimmed and without hits while a
 run is going."""
 
 from .fonts import clamp, cut, measure, wrap
 from . import tokens as T
-from .draw import _paint, _text
+from . import video_texts as V
+from .draw import _flow, _paint, _text
 
 
 try:
@@ -26,6 +27,8 @@ def tab_line(state):
         return T.TAB_LINE_ASSET_CHANGE % state.thing if state.thing else T.TAB_LINE_ASSET
     if state.tab == "character":
         return T.TAB_LINE_CHARACTER_CHANGE % state.thing if state.thing else T.TAB_LINE_CHARACTER
+    if state.tab == "video":
+        return V.TAB_LINE
     return T.TAB_LINE_SCENE_NEXT if state.has_scene else T.TAB_LINE_SCENE_FIRST
 
 
@@ -80,30 +83,31 @@ def _draw_chip(canvas, label, x, y, hits, enabled):
 
 
 def tab_row(state, width):
-    """``(height, paint)`` of the tab row and its line, left-aligned with the prompt text."""
+    """``(height, paint)`` of the tab row and its line, left-aligned with the prompt text. The tabs wrap onto a
+    second line in a narrow bar."""
     pill_h = T.PILL_LINE + 2 * T.PILL_PAD_Y
+    tabs, tabs_h = _flow([(_tab_width(label), pill_h, (target, label, hit_id))
+                          for (target, label), hit_id in zip(T.TABS, T.TAB_HITS)], width, T.PILL_GAP)
     lines, chip = line_layout(state, width)
     heights = _line_heights(lines, chip)
-    h = pill_h + (T.TAB_LINE_GAP + sum(heights) if lines else 0)
+    h = tabs_h + (T.TAB_LINE_GAP + sum(heights) if lines else 0)
 
     def paint(canvas, x, y, w, hits):
         if not state.tabs_enabled:
             canvas.saveLayerAlpha(skia.Rect.MakeXYWH(x - 1, y - 1, w + 2, h + 2), round(T.SEND_DISABLED_ALPHA * 255))
-        left = x
-        for (target, label), hit_id in zip(T.TABS, T.TAB_HITS):
-            tw = _tab_width(label)
+        for left, top, tw, _h, (target, label, hit_id) in tabs:
+            left, top = x + left, y + top
             chosen = target == state.tab
-            rect = skia.RRect.MakeRectXY(skia.Rect.MakeXYWH(left, y, tw, pill_h), pill_h / 2, pill_h / 2)
+            rect = skia.RRect.MakeRectXY(skia.Rect.MakeXYWH(left, top, tw, pill_h), pill_h / 2, pill_h / 2)
             canvas.drawRRect(rect, _paint(T.CHIP_ACTIVE_FILL if chosen else T.SECONDARY_FILL))
-            inner = skia.RRect.MakeRectXY(skia.Rect.MakeXYWH(left + 0.5, y + 0.5, tw - 1, pill_h - 1), pill_h / 2,
+            inner = skia.RRect.MakeRectXY(skia.Rect.MakeXYWH(left + 0.5, top + 0.5, tw - 1, pill_h - 1), pill_h / 2,
                                           pill_h / 2)
             canvas.drawRRect(inner, _paint(T.CHIP_ACTIVE_STROKE if chosen else T.SECONDARY_STROKE, stroke=1))
-            _text(canvas, label, left + T.PILL_PAD_LEFT, y + T.PILL_PAD_Y, T.PILL_LINE, "medium", T.PILL_SIZE,
+            _text(canvas, label, left + T.PILL_PAD_LEFT, top + T.PILL_PAD_Y, T.PILL_LINE, "medium", T.PILL_SIZE,
                   T.PILL_TEXT if chosen else T.TAB_TEXT)
             if state.tabs_enabled:
-                hits[hit_id] = (left, y, tw, pill_h)
-            left += tw + T.PILL_GAP
-        top = y + pill_h + T.TAB_LINE_GAP
+                hits[hit_id] = (left, top, tw, pill_h)
+        top = y + tabs_h + T.TAB_LINE_GAP
         for i, line in enumerate(lines):
             lh = heights[i]
             end = _text(canvas, line, x, top, lh, "regular", T.TAB_LINE_SIZE, T.HINT)
