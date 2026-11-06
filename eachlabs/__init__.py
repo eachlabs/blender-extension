@@ -4,7 +4,7 @@ Submodules that import ``bpy`` are loaded in ``register()`` so the pure modules 
 ``capabilities``, ``jobs``, ``naming``, ``timing``) stay importable for unit tests outside Blender.
 """
 
-VERSION = "0.1.0"
+VERSION = "0.2.0"
 
 
 def register():
