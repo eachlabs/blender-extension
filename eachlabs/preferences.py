@@ -159,6 +159,10 @@ class EachlabsPreferences(bpy.types.AddonPreferences):
         description="Keep the helper functions the chat wrote in steps that worked, on this computer only, and "
                     "offer the fitting ones to later scenes by name. They pass the same code filter again before "
                     "they run. Off: every scene starts without them")
+    chat_history: BoolProperty(
+        name="Keep chat history in each::labs", default=True,
+        description="Store each scene chat's prompts and replies with your each::labs organization, so a file you "
+                    "reopen still knows its earlier requests. Off: they stay in this Blender session only")
     settle_props: BoolProperty(
         name="Settle small props", default=True,
         description="After the layout, the detail stage and a fix, bring the chat's small loose things (a cup, a "
@@ -259,6 +263,7 @@ class EachlabsPreferences(bpy.types.AddonPreferences):
             box.label(text=CONSENT_UNSET_TEXT)
         box.prop(self, "visual_check")
         box.prop(self, "scene_review")
+        box.prop(self, "chat_history")
         box.prop(self, "chat_step_seconds")
         box.prop(self, "chat_max_failures")
         box = layout.box()
@@ -436,6 +441,7 @@ from .prefs.chat_settings import (  # noqa: F401
     advanced_tools,
     allow_code,
     ask_consent_again,
+    chat_history,
     chat_limits,
     chat_model,
     code_allowed,

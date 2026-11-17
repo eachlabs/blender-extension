@@ -16,6 +16,7 @@ DEFAULT_BASE_URL = "https://api.eachlabs.ai"
 DEFAULT_TIMEOUT = 30
 DOWNLOAD_TIMEOUT = 120
 CHAT_TIMEOUT = 120.0  # seconds one chat round may take
+SESSION_TIMEOUT = 10  # seconds one read or write of a stored chat session may take
 READ_TIMEOUT = 20  # seconds one read of a result download may wait: a stopped download ends soon after Stop
 MAX_UPLOAD_BYTES = 100 * 1024 * 1024
 MAX_DOWNLOAD_BYTES = 4 * 1024 * 1024 * 1024
@@ -286,6 +287,31 @@ class EachlabsClient:
         if tools:
             body["tools"] = tools
         return self._json("POST", "/v1/chat/completions", body=body, timeout=timeout)
+
+    # -- chat sessions -----------------------------------------------------------------------
+
+    def append_session_lines(self, surface, scope, lines, session_id=None, timeout=SESSION_TIMEOUT):
+        """``POST /v1/eachsense/sessions/lines``: store lines the chat showed and return the session's id.
+        Without ``session_id`` a new session of ``surface`` starts for ``scope``; a line whose ``line_id`` the
+        session already holds is not stored again."""
+        body = {"surface": surface, "scope": scope, "lines": list(lines)}
+        if session_id:
+            body["session_id"] = session_id
+        result = self._json("POST", "/v1/eachsense/sessions/lines", body=body, timeout=timeout)
+        if not result.get("session_id"):
+            raise ApiError("The chat session was not stored")
+        return result["session_id"]
+
+    def list_sessions(self, surface, scope, limit=1, timeout=SESSION_TIMEOUT):
+        """The stored sessions of ``surface`` with this ``scope``, newest first."""
+        page = self._json("GET", "/v1/eachsense/sessions", query={"surface": surface, "scope": scope, "limit": limit},
+                          timeout=timeout)
+        return page.get("sessions") or []
+
+    def get_session(self, session_id, timeout=SESSION_TIMEOUT):
+        """A stored session's messages, oldest first."""
+        page = self._json("GET", "/v1/eachsense/sessions/" + urllib.parse.quote(session_id, safe=""), timeout=timeout)
+        return page.get("messages") or []
 
     # -- catalog -----------------------------------------------------------------------------
 

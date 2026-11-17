@@ -13,7 +13,8 @@ from eachlabs import chat_loop, compat, main_thread, pipeline, preferences
 from tests import blender_fakes
 from tests.blender_fakes import (BAD_CAMERA, CAMERA, CHECK, FakeLLM, KIOSK_CODE, STREET, code_reply, offline_api,
                                  text_reply, tool_reply)
-from tests.smoke.chat_common import _ScriptLLM, _chat_cameras, _chat_drive, _scene_in, _tool_contents
+from tests.smoke.chat_common import (_ScriptLLM, _chat_cameras, _chat_drive, _scene_in, _tick_until,
+                                     _tool_contents)
 from tests.smoke.common import BOX_CODE, check
 
 
@@ -647,3 +648,87 @@ def test_chat_follow_up():
             bpy.data.collections.remove(child)
         bpy.data.collections.remove(coll)
     bpy.data.scenes.remove(scene)
+
+
+
+def test_chat_session():
+    """A run stores its prompt and reply on the scene chat's each::sense session. After the file is opened again
+    the next prompt knows the earlier one and continues the same session. An API that stores no chats never stops
+    a run."""
+    from eachlabs import chat_run
+    from eachlabs.chat import session_sync
+
+    chat_run.cancel(drop_build=True)
+    chat_run.reset_view()
+    scene = bpy.data.scenes.new("eachlabs_session")
+    scene.render.fps, scene.render.fps_base = 24, 1.0
+    context = types.SimpleNamespace(scene=scene, preferences=bpy.context.preferences)
+    file_runs = chat_run._file_runs
+    try:
+        with offline_api() as client:
+            client.sessions, chat_run._sessions["off"] = {}, False
+            client.chat_llm = FakeLLM(STREET + CAMERA + CHECK + [text_reply("A street.")])
+            chat_run.start(context, "a street at dusk")
+            _chat_drive()
+            build = chat_run._build
+            _tick_until(lambda: build.session_id is not None)
+            stored = client.sessions.get(build.run_id) or {"lines": []}
+            check("session: a run stores its prompt and its reply under the build's run id",
+                  chat_run.STATE.status == "done" and build.session_id == stored.get("id")
+                  and [(line["role"], line["kind"]) for line in stored["lines"]] == [("user", "user"),
+                                                                                    ("assistant", "assistant")]
+                  and stored["lines"][0]["content"] == "a street at dusk"
+                  and stored["lines"][1]["detail"]["status"] == "done", str(stored["lines"])[:300])
+
+            shown = session_sync.transcript(scene)
+            check("session: the bar's history view has the run's prompt and answer",
+                  [(e["role"], e["status"]) for e in shown] == [("user", ""), ("assistant", "done")]
+                  and shown[0]["text"] == "a street at dusk", str(shown)[:300])
+
+            # The file is opened again: this session's builds are forgotten, the collection's tag stays.
+            run_id, session_id = build.run_id, build.session_id
+            chat_run.cancel(drop_build=True)
+            chat_run.reset_view()
+            chat_run._builds.clear()
+            chat_run._file_runs = frozenset({run_id})
+            chat_run.STATE.history = []
+            session_sync.restore({run_id})
+            _tick_until(lambda: chat_run.STATE.history == ["a street at dusk"])
+            check("session: an opened file's stored prompts join the bar's history",
+                  chat_run.STATE.history == ["a street at dusk"], str(chat_run.STATE.history))
+            shown = session_sync.transcript(scene)
+            check("session: an opened file's stored chat fills the history view before any new prompt",
+                  chat_run._build is None and [e["text"] for e in shown][:1] == ["a street at dusk"]
+                  and len(shown) == 2 and shown[1]["status"] == "done", str(shown)[:300])
+
+            client.chat_llm = FakeLLM([code_reply(KIOSK_CODE), text_reply("Added a kiosk.")])
+            chat_run.start(context, "add a kiosk")
+            _chat_drive()
+            sent = client.chat_llm.messages
+            _tick_until(lambda: len(client.sessions[run_id]["lines"]) == 4)
+            check("session: the first prompt after reopening names the stored earlier request",
+                  chat_run._build.run_id == run_id and bool(sent)
+                  and "- a street at dusk" in sent[0][1]["content"], sent[0][1]["content"][:200] if sent else "")
+            shown = session_sync.transcript(scene)
+            check("session: a follow-up joins the stored chat in the history view",
+                  [e["text"] for e in shown if e["role"] == "user"] == ["a street at dusk", "add a kiosk"]
+                  and len(shown) == 4, str(shown)[:300])
+            check("session: the reopened chat continues its session instead of starting another",
+                  chat_run._build.session_id == session_id and list(client.sessions) == [run_id]
+                  and [line["content"] for line in client.sessions[run_id]["lines"]][2] == "add a kiosk",
+                  str(client.sessions)[:300])
+
+            client.sessions = None  # an API without stored chats
+            client.chat_llm = FakeLLM([code_reply(KIOSK_CODE), text_reply("Another kiosk.")])
+            chat_run.start(context, "add another kiosk")
+            _chat_drive()
+            _tick_until(lambda: chat_run._sessions["off"])
+            check("session: an API that stores no chats leaves the run done and turns the history off",
+                  chat_run.STATE.status == "done" and chat_run._sessions["off"], chat_run.STATE.status)
+    finally:
+        blender_fakes.FakeClient.sessions = None
+        chat_run._sessions["off"], chat_run._file_runs = False, file_runs
+        chat_run._sessions["restored"].clear()
+        chat_run._sessions["lines"].clear()
+        chat_run.cancel(drop_build=True)
+        chat_run.reset_view()

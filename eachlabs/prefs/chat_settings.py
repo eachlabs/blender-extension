@@ -147,6 +147,14 @@ def scene_review(context=None):
 
 
 
+def chat_history(context=None):
+    """True when a scene chat's prompts and replies are kept in each::labs, so a reopened file knows them; True
+    when preferences are unavailable."""
+    prefs = live.preferences.get_preferences(context)
+    return bool(getattr(prefs, "chat_history", True)) if prefs is not None else True
+
+
+
 def textures_limit(context=None):
     """Generated textures one scene may order; 0 when preferences are unavailable."""
     prefs = live.preferences.get_preferences(context)

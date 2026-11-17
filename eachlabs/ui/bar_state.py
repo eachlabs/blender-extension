@@ -16,7 +16,7 @@ KEY_ERRORS = ("Add your Eachlabs API key to start.", "API key was rejected (HTTP
 CANCELLED = "Stopped. What was built is kept."
 _HIT_ORDER = V.HITS + T.CAMERA_HITS + ("play_menu", "play", "frame", "video_stop", "video_retry", "video_open", "video_file", "final", "undo", "code", "new", "retry", "keep", "prefs", "network", "halt") + CONSENT_ACTIONS + (
     T.PLAN_HITS + PLAN_ACTIONS + ("plan_limit", "plan_raise", "missing", "widen", "asked") + T.QUALITY_HITS
-    + (T.TAB_CLEAR,) + T.TAB_HITS + ("settings", "quality", "send", "stop", "field", "bar"))
+    + (T.TAB_CLEAR,) + T.TAB_HITS + T.HISTORY_HITS + ("settings", "quality", "send", "stop", "field", "bar"))
 
 
 OBJECT_LINES = 3  # job lines while a run goes; more are one "+N more" line
@@ -178,7 +178,8 @@ def camera_picked(hit_id, menu):
 
 def from_chat(chat, field, focused, now, caret_on=True, spinner_phase=0.0, key_changed=False, has_scene=False,
               undoable=None, consent=False, quality="", menu=False, asked_open=False, advanced=True, tab="",
-              cameras=(), camera_menu=False, playing=False, thing="", shot=None):
+              cameras=(), camera_menu=False, playing=False, thing="", shot=None, history=(), history_open=False,
+              history_scroll=0.0):
     """See ``_from_chat``; ``thing``: the selected thing (``thing_label``), changed by a prompt on Assets or
     Characters; ``quality``: the quality mode, shown on the pill (none for ``""``); ``menu``: its menu is open. Both are off while a run is going: the pill is dimmed. ``advanced``: Show code, Final render and New scene are shown (Preferences, "Show advanced tools"); ``tab``: the chosen tab, none for ``""``. ``cameras``: the scene's cameras as ``(name, hint, chosen)`` (``play_cameras.menu``); ``camera_menu``: their menu is open; ``playing``: the animation plays; ``shot``: the Video tab's ``video_tab.Shot`` (that tab is drawn from it)."""
     s = _from_chat(chat, field, focused, now, caret_on, spinner_phase, key_changed, has_scene, undoable, consent)
@@ -211,11 +212,32 @@ def from_chat(chat, field, focused, now, caret_on=True, spinner_phase=0.0, key_c
     s.quality_enabled = not chat.running
     if menu and s.quality_label and not chat.running and s.mode != "consent":
         s.quality_menu = quality_menu(quality)
+    if history and not chat.running and tab != "video":  # ``history``: ``session_log.entries`` of the scene chat
+        s.history_button = True
+        if history_open and s.mode != "consent":
+            s.history_open, s.history, s.history_scroll = True, history_entries(history), float(history_scroll)
     if tab == "video" and shot is not None and not chat.running:
         return video_tab.apply(s, chat, shot, now)
     attach(s, chat)  # the video in every state the done card does not cover
     _play(s, cameras, camera_menu and not s.quality_menu, playing)
     return s
+
+
+def history_entries(lines):
+    """The history view's ``(role, text, meta)`` per stored line: an answer's meta is how the run ended and what it
+    cost ("done · $0.38"); a very long text is cut."""
+    shown = []
+    for line in lines:
+        text = line.get("text", "")
+        if len(text) > T.HISTORY_TEXT_MAX:
+            text = text[:T.HISTORY_TEXT_MAX - 1] + "…"
+        meta = ""
+        if line.get("role") != "user":
+            cost = line.get("cost") or 0
+            meta = T.HINT_SEPARATOR.join(part for part in (line.get("status", ""), "$%.2f" % cost if cost else "")
+                                         if part)
+        shown.append((line.get("role", ""), text, meta))
+    return shown
 
 
 def thing_label(names):

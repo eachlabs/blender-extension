@@ -626,6 +626,30 @@ Which handler gets a `LEFTMOUSE` press on the bar first, probed in 4.2.23 and 5.
   scene. The model's reply alone is not enough: it can describe what it meant to build.
 - The cost is the balance before the run minus the balance after it.
 
+### Stored chat sessions
+
+A scene chat is stored as an each::sense session, so a file opened again still knows its earlier requests.
+each::sense only stores and returns the lines; the add-on still runs the chat itself.
+
+- **Identity:** surface `blender`, scope the build's run id (the `eachlabs_run` tag on the chat's collections,
+  saved in the `.blend`). The session id is kept on the `SceneBuild` in memory and found again by the scope.
+- **Write:** when a run ends (`events._finish`), `session_sync.record` posts two lines to
+  `POST /v1/eachsense/sessions/lines`: the prompt (`<turn>-user`) and what the bar answered (`<turn>-reply`,
+  kind `assistant` or `error`, with the stages, cost and status as its detail). A retry adds only its answer.
+  The line ids make a repeated post store nothing twice. Secrets are redacted as in the debug log.
+- **Read:** after a file opens (`chat_run.file_opened`), `session_sync.restore` reads the sessions of the run
+  tags in the file (at most 20) with `GET /v1/eachsense/sessions?surface=blender&scope=…`. The prompts join
+  the bar's history, and the first prompt in that scene gets them as its earlier requests.
+- **History view:** the stored lines of each scene chat are also kept as entries (`chat_run._sessions["lines"]`,
+  at most 200 per chat), and every finished run adds its own, stored or not. The bar's clock button
+  (`ui/history_rows.py`) shows the entries of the chat the next prompt continues (`session_sync.transcript`) in
+  a view of fixed height above the input; the wheel, a trackpad, Page Up and Page Down and its arrows scroll it.
+  It is closed while a run goes and on the Video tab.
+- **Never on the run's path:** both run on a thread of their own with a 10 s limit per request; a failure goes
+  to the debug log only. HTTP 400, 403, 404 or 405 (an API without the route, or an organization whose chats
+  are not stored) turns it off until Blender restarts.
+- **Off switch:** *Keep chat history in each::labs* under *Chat* in the preferences.
+
 ### Scene ownership and undo
 
 - Objects a step creates are moved into the run's own collection, `Eachlabs scene`.

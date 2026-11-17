@@ -58,12 +58,36 @@ class FakeClient:
     _models = {}  # prediction id -> model
     fail_create = None
     draft_id = None  # When set, outputs come back as {"video_url", "draft_id"} like a Seedance draft.
+    sessions = None  # scope -> {"id", "lines"}: the stored chat sessions; None: the API stores none (HTTP 404)
 
     def __init__(self, api_key, base_url, user_agent="", timeout=30):
         self.api_key = api_key
 
     def get_model(self, slug):
         return {"cost": {"estimate": "$0.10 per execution", "unit": "execution", "type": "fixed", "amount": 0.1}}
+
+    def _stored(self):
+        if FakeClient.sessions is None:
+            raise api_client.ApiError("Not found (HTTP 404)", status=404)
+        return FakeClient.sessions
+
+    def list_sessions(self, surface, scope, limit=1, timeout=None):
+        found = self._stored().get(scope)
+        return [{"id": found["id"], "surface": surface, "scope": scope}] if found else []
+
+    def append_session_lines(self, surface, scope, lines, session_id=None, timeout=None):
+        store = self._stored()
+        found = store.setdefault(scope, {"id": session_id or "sess-%d" % (len(store) + 1), "lines": []})
+        known = {line["line_id"] for line in found["lines"]}
+        found["lines"].extend(line for line in lines if line["line_id"] not in known)
+        return found["id"]
+
+    def get_session(self, session_id, timeout=None):
+        for found in self._stored().values():
+            if found["id"] == session_id:
+                return [{k: line[k] for k in ("role", "kind", "content", "detail") if k in line}
+                        for line in found["lines"]]  # as the API returns a stored line
+        return []
 
     def upload_file(self, path, content_type, file_type, cancel_event=None):
         FakeClient.log.append(("upload", os.path.basename(path)))

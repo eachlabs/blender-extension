@@ -8,7 +8,7 @@ import bpy
 from .. import chat_loop, code_check, code_runner, edit_guard, main_thread, viewport_marks
 from ..things import after_step as things_after
 from .live import chat_run
-from . import budget, edits, library_use, object_jobs, plan_flow, stage_log, undo_watch, viewport
+from . import budget, edits, library_use, object_jobs, plan_flow, session_sync, stage_log, undo_watch, viewport
 
 
 def _fingerprint(build):
@@ -109,6 +109,7 @@ def _finish(run, result, cost):
     undo_watch._settle()
     if result.status == "found":  # the bar already says what was found; nothing was built
         chat_run.STATE.error, chat_run.STATE.stages, chat_run.STATE.failed_stage, chat_run.STATE.unchanged = "", {}, None, False
+        session_sync.record(run, result.status)
         return
     chat_run.STATE.missing = []
     # Objects only: a world put back on a follow-up not about light is never offered (ask for the light instead).
@@ -133,6 +134,7 @@ def _finish(run, result, cost):
     else:
         chat_run.STATE.error = result.message
         chat_run.STATE.failed_stage = result.failed_stage
+    session_sync.record(run, result.status)
     main_thread.tag_redraw()
 
 

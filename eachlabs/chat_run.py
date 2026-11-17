@@ -52,6 +52,9 @@ _build = None  # the current scene's SceneBuild: retries and follow-up prompts b
 _no_resume = False  # New scene was pressed: the next prompt starts a new build even where the chat built before
 _builds = []  # this session's builds, for picking up a scene's earlier work (``SceneBuild.take``)
 _file_runs = frozenset()  # the run tags of the chat's collections when the file was opened
+# The scene chats' each::sense sessions (``chat/session_sync.py``): "off" once the API said it stores none here;
+# "restored": run id -> (session id, prompts newest first) read for the opened file.
+_sessions = {"off": False, "restored": {}, "lines": {}}  # lines: run id -> the history view's entries
 _play_saved = {}  # what Play through a camera changed, to put back when playback stops (``chat/playback.py``)
 
 
@@ -126,6 +129,8 @@ def start(context, prompt, stages=None):
     else:
         resumed = None if _no_resume else scene_build.SceneBuild.resume(context.scene, _file_runs, _builds)
         _build = resumed or scene_build.SceneBuild(context.scene, uuid.uuid4().hex[:12])
+        if resumed is not None:
+            session_sync.resume(_build)  # an opened file's chat: the prompts its session stored
         earlier = list(_build.prompts)
         fresh = resumed is None
         if _build not in _builds:
@@ -173,6 +178,7 @@ def start(context, prompt, stages=None):
     view = area.as_pointer() if area is not None and area.type == "VIEW_3D" else None
     window = getattr(context, "window", None)
     run = _Run(_build, client, model, limits, view, earlier, window.as_pointer() if window is not None else None)
+    run.retry = retry
     library_use.prepare(run, prompt, context)
     stage_log.started(log_folder(), prompt, follow_up=not fresh)
     run.secrets = tuple(preferences.secrets(context)) + ((client.api_key,) if client.api_key else ())
@@ -267,6 +273,7 @@ def file_opened():
     _file_runs = frozenset(c[scene_build.RUN] for c in bpy.data.collections
                            if isinstance(c.get(scene_build.RUN), str) and c[scene_build.RUN])
     _builds.clear()
+    session_sync.restore(_file_runs)
 
 
 def new_scene(context=None):
@@ -373,7 +380,7 @@ from .chat.undo_watch import (  # noqa: F401
 from .chat.viewport import _area, _show_camera_path, frame_objects, material_preview  # noqa: F401
 
 from .chat.removal import _resting_on  # noqa: F401
-from .chat import library_use, stage_log  # noqa: E402
+from .chat import library_use, session_sync, stage_log  # noqa: E402
 
 from .chat.plan_flow import _hollow, build_missing, plan_answer, plan_toggle, widen  # noqa: F401
 

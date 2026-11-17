@@ -55,6 +55,8 @@ UI = {"focused": False, "blink_from": 0.0, "mcp_checked": False, "key_seen": Non
       "fail_draw": False, "draw_errors": 0, "consent": False,  # consent: the consent card is open
       "quality_menu": False,  # the quality menu is open
       "camera_menu": False,  # the Play button's camera menu is open
+      "history_open": False,  # the scene chat's history shows above the input
+      "history_scroll": 0.0,  # logical px its view is moved up from the newest entry
       "drag": None,  # the region of a press that started in the prompt field: a drag selects
       "last_click": None,  # (time, caret index) of the last press in the field, for a double click
       "asked_open": False,  # the bar shows the whole prompt of the run, not one line
@@ -284,7 +286,7 @@ def _schedule():
 def _hook():
     """A main-thread hook: a run started from the sidebar also gets the bar's spinner."""
     if chat_run.STATE.running:
-        UI["consent"] = UI["quality_menu"] = UI["camera_menu"] = UI["video_confirm"] = False
+        UI["consent"] = UI["quality_menu"] = UI["camera_menu"] = UI["video_confirm"] = UI["history_open"] = False
         UI["video_menu"] = ""
         if not bpy.app.timers.is_registered(_tick):
             _schedule()
@@ -296,6 +298,7 @@ def _on_load(_dummy):
     _placed.clear()
     _cache.clear()
     UI["focused"] = UI["pressed"] = UI["consent"] = UI["quality_menu"] = UI["camera_menu"] = False
+    UI["history_open"], UI["history_scroll"] = False, 0.0
     UI["video_menu"], UI["video_confirm"], UI["video_stop_ask"], UI["video_hidden"] = "", False, False, None
     UI["video_priced"], UI["video_changed"] = None, False
     hover.stop()
@@ -374,7 +377,7 @@ from .viewport.input import _click, _done, _drag, _target, _target_at, on_event 
 
 # Imported last: these modules read this one's state through it.
 from .viewport.actions import (_act, _stop, blur, close_menus, consent, focus, open_consent, restore_prompt,  # noqa: F401
-                               show_tab, submit)
+                               scroll_history, show_tab, submit)
 
 
 # Imported last: these modules read this one's state through it.
