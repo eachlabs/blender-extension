@@ -85,6 +85,11 @@ class EachlabsPreferences(bpy.types.AddonPreferences):
         name="Quality mode", default=DEFAULT_QUALITY,
         items=QUALITIES,
         description="How much each run builds; the prompt bar's quality menu sets it too")
+    chat_eachsense: BoolProperty(
+        name="Build on each::sense", default=True,
+        description="When the API offers it, each::sense runs the build's stages and their model calls, and Blender "
+                    "runs every step as now. The quality mode picks its models. Off, or when the API does not offer "
+                    "it, the add-on runs the stages itself")
     chat_model: StringProperty(
         name="Model", default=DEFAULT_CHAT_MODEL,
         description="Language model id the scene chat uses")
@@ -242,6 +247,7 @@ class EachlabsPreferences(bpy.types.AddonPreferences):
         box = layout.box()
         box.label(text="Chat", icon="OUTLINER_OB_FONT")
         box.prop(self, "chat_quality")
+        box.prop(self, "chat_eachsense")
         row = box.row(align=True)
         row.prop(self, "chat_model")
         row.operator("eachlabs.best_quality", text="Best quality")
@@ -452,6 +458,7 @@ from .prefs.chat_settings import (  # noqa: F401
     detail_light_rounds,
     detail_model,
     detail_settings,
+    eachsense_builds,
     free_assets,
     helper_library,
     light_model,

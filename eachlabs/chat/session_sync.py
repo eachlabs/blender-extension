@@ -36,7 +36,7 @@ def record(run, status):
                                       detail, retry=run.retry)
         lines = code_check.redact(lines, run.secrets)
         _show(build.run_id, session_log.entries(lines))  # the bar's history has it, stored or not
-        if not _on():
+        if not _on() or getattr(run, "on_eachsense", False):  # each::sense stored the build it ran itself
             return
         client, scope, secrets = run.client, build.run_id, run.secrets
     except Exception as exc:  # a run's end must not depend on its history

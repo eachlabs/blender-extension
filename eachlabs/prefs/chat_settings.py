@@ -287,6 +287,12 @@ def allow_code(context=None, code_check_on=False):
 
 
 
+def eachsense_builds(context=None):
+    """True when a build may run on each::sense (the API still has to offer it); off without preferences."""
+    prefs = live.preferences.get_preferences(context)
+    return bool(getattr(prefs, "chat_eachsense", False)) if prefs is not None else False
+
+
 def settle_props(context=None):
     """True when small loose props are settled after the layout, detail and fix stages; off without preferences."""
     prefs = live.preferences.get_preferences(context)

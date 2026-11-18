@@ -313,6 +313,38 @@ class EachlabsClient:
         page = self._json("GET", "/v1/eachsense/sessions/" + urllib.parse.quote(session_id, safe=""), timeout=timeout)
         return page.get("messages") or []
 
+    # -- each::sense scene builds ------------------------------------------------------------
+
+    def eachsense_capabilities(self, timeout=SESSION_TIMEOUT):
+        """``GET /v1/eachsense/capabilities``: what each::sense offers this key's organization."""
+        return self._json("GET", "/v1/eachsense/capabilities", timeout=timeout)
+
+    def start_scene(self, body, timeout=SESSION_TIMEOUT):
+        """``POST /v1/eachsense/scenes``: start a scene build; returns ``{"run_id", "status", "session_id"}``."""
+        result = self._json("POST", "/v1/eachsense/scenes", body=body, timeout=timeout)
+        if not result.get("run_id"):
+            raise ApiError("each::sense did not start the build")
+        return result
+
+    def get_scene(self, run_id, timeout=SESSION_TIMEOUT):
+        """``GET /v1/eachsense/scenes/{id}``: the build as it is now, with its open tool request."""
+        return self._json("GET", "/v1/eachsense/scenes/" + urllib.parse.quote(run_id, safe=""), timeout=timeout)
+
+    def answer_scene_tool(self, run_id, seq, result=None, error="", timeout=SESSION_TIMEOUT):
+        """``POST /v1/eachsense/scenes/{id}/tool``: Blender's answer to tool request ``seq``."""
+        body = {"seq": int(seq)}
+        if error:
+            body["error"] = error
+        else:
+            body["result"] = result
+        self._json("POST", "/v1/eachsense/scenes/%s/tool" % urllib.parse.quote(run_id, safe=""), body=body,
+                   timeout=timeout)
+
+    def cancel_scene(self, run_id, timeout=SESSION_TIMEOUT):
+        """``POST /v1/eachsense/scenes/{id}/cancel``: ask the build to stop."""
+        return self._json("POST", "/v1/eachsense/scenes/%s/cancel" % urllib.parse.quote(run_id, safe=""),
+                          timeout=timeout)
+
     # -- catalog -----------------------------------------------------------------------------
 
     def list_models(self, page_size=100, max_pages=50):

@@ -26,6 +26,7 @@ from . import (asset_cache, chat_loop, code_check, code_review, code_runner, com
                thread_safety, undo_steps, viewport_marks, visual_check, workflow_3d)
 from .ui import tokens
 from .instructions import targets
+from .chat import eachsense_build
 from .chat.budget import cost_text  # noqa: F401
 from .chat.state import ChatState, _Run  # noqa: F401
 
@@ -215,6 +216,8 @@ def start(context, prompt, stages=None):
     run.scene_review = preferences.scene_review(context) and full and model not in NO_PICTURES
     run.free_assets_on = preferences.free_assets(context)
     run.settle_on = preferences.settle_props(context)
+    run.eachsense_on = preferences.eachsense_builds(context)  # the worker asks whether the API offers it
+    run.eachsense_tier = eachsense_build.tier(preferences.quality(context), model, preferences.BEST_MODEL)
     if run.objects_3d or run.textures_limit or run.free_assets_on:
         run.cache_folder = cache_folder()
     if run.concept_allowed or run.references_on:
