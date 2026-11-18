@@ -254,7 +254,7 @@ def _work(run, prompt, stages):
         on_eachsense = _on_eachsense(run, stages)
         try:
             executor = chat_loop.Executor(chat_run._call_soon, run.step_seconds + chat_run.EXECUTOR_MARGIN, execute=execute)
-            if run.free_assets_on and not on_eachsense:
+            if run.free_assets_on:  # an each::sense build's free_sky and free_texture download here too
                 executor = haven_tools.on_worker(executor, run.client, run.cache_folder, run.cancel)
             more = None
             if run.detail_more:
@@ -266,10 +266,11 @@ def _work(run, prompt, stages):
                 pool = max(0, run.rounds_cap - run.limits.total_rounds)
                 run.limits = replace(run.limits, detail_rounds=pool, extra_rounds=min(run.limits.extra_rounds, pool))
             reviewing = bool(run.scene_review and full and (run.visual is None or run.visual.accepted))
+            result = None
             if on_eachsense:
                 result = _work_eachsense(run, prompt, stages, executor, review,
                                          _eachsense_inputs(run, stages, objects, left, concept, reviewing))
-            else:
+            if result is None:  # each::sense is off, or it did not take the build: nothing ran there
                 result = _local_loop(run, prompt, stages, llm, quick_llm, cap, executor, post, review, objects, left,
                                      concept, more, reviewing)
         except Exception as exc:  # A worker must always report back.
@@ -324,7 +325,9 @@ def _on_eachsense(run, stages):
 
 def _eachsense_inputs(run, stages, objects, left, concept, reviewing):
     """What this Blender brings to an each::sense build (its ``build_inputs`` answer): the approved plan's brief,
-    the concept picture, the textures left, the detail and review settings, pictures on or off and the limits."""
+    the concept picture, the textures left, the detail and review settings, pictures on or off, the limits, the
+    scene's earlier prompts (edits and local builds too; a retry's own prompt is not one), the helper library's
+    offer and whether free assets are on."""
     settings = run.detail if chat_loop.DETAIL in stages else None
     limits = run.limits
     return {
@@ -340,6 +343,9 @@ def _eachsense_inputs(run, stages, objects, left, concept, reviewing):
         "planned": [[name, level] for name, level in getattr(run, "planned", None) or ()],
         "scene_review": reviewing,
         "request": run.request or "",
+        "earlier": [p for p in run.earlier or () if isinstance(p, str)],
+        "library": getattr(run, "library_offer", "") or "",
+        "assets": bool(run.free_assets_on),
         "limits": {"total_rounds": limits.total_rounds, "layout_rounds": limits.rounds_for("layout"),
                    "extra_rounds": limits.extra_rounds,
                    **({"detail_rounds": limits.detail_rounds} if limits.detail_rounds is not None else {})},
@@ -348,7 +354,8 @@ def _eachsense_inputs(run, stages, objects, left, concept, reviewing):
 
 def _work_eachsense(run, prompt, stages, executor, review, inputs):
     """Worker thread: the build runs on each::sense and every tool it asks for runs here. The caller waits for the
-    3D objects and ends the run as a local one."""
+    3D objects and ends the run as a local one. ``None`` when each::sense did not take the build: the caller
+    runs the local loop, with the plan and the pictures already settled."""
     def post(event):
         chat_run._call_soon(lambda: events._apply(run, event))
 
@@ -375,6 +382,10 @@ def _work_eachsense(run, prompt, stages, executor, review, inputs):
             review=review if run.code_check else None, on_session=session, inputs=inputs,
             local={"reference_picture": lambda args: reference(str(args.get("object") or "")),
                    "generation_notes": lambda args: object_jobs._failed_notes(run)}, shrink=smaller)
+    except eachsense_build.NotStarted as exc:
+        run.on_eachsense = False  # the local loop's run: session_sync stores its lines
+        debug_log.debug_log({"eachsense": "not started", "error": str(exc)}, run.secrets)
+        return None
     except Exception as exc:  # A worker must always report back.
         return chat_loop.RunResult("stopped", str(exc) or type(exc).__name__, 0, None)
 

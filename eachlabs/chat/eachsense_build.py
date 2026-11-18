@@ -1,8 +1,10 @@
 """A scene build each::sense runs: the stage loop and its model calls run there, every tool runs here. No Blender here.
 
 The plan card, the 3D objects and textures it orders and the concept and reference pictures are settled here first,
-as for the local loop; their outcome goes to each::sense as the ``build_inputs`` answer, and each::sense runs the
-detail stage, the renders it looks at and the scene review through the tools it asks for.
+as for the local loop; their outcome goes to each::sense as the ``build_inputs`` answer, with the scene's earlier
+prompts, the helper library's offer and whether free Poly Haven assets are on, and each::sense runs the detail
+stage, the renders it looks at and the scene review through the tools it asks for. A build each::sense does not
+take raises ``NotStarted``: nothing ran there, so the caller builds it with the local loop.
 
 ``run`` starts the build (``POST /v1/eachsense/scenes``, surface ``blender``), polls it, and answers each tool
 request with ``execute``, the chat's own, which runs on Blender's main thread. A code step gets the Code check review
@@ -42,6 +44,10 @@ TOO_BIG = "Blender's answer (%d bytes) was too big to send; go on without it."
 _offers = {}  # base URL -> (offered, when it was asked)
 
 
+class NotStarted(Exception):
+    """each::sense did not take the build; nothing of it ran there."""
+
+
 def offered(client, now=time.monotonic):
     """Whether the API runs Blender scene builds for this key's organization; ``False`` when it cannot tell."""
     key = (getattr(client, "base_url", None), getattr(client, "api_key", None))
@@ -54,6 +60,11 @@ def offered(client, now=time.monotonic):
         value = False
     _offers[key] = (value, now())
     return value
+
+
+def forget(client):
+    """Drop the kept answer to "is it offered", so the next run asks the API again."""
+    _offers.pop((getattr(client, "base_url", None), getattr(client, "api_key", None)), None)
 
 
 def tier(quality, model, best_model):
@@ -83,10 +94,12 @@ def run(client, prompt, execute, post, cancel, *, stages=STAGES, scope="", sessi
 
     ``execute(name, args)`` runs a tool on Blender's main thread; ``review(code, objects, collection)`` is Code
     check, ``None`` when it is off. ``on_session(session_id)`` is told the build's session once it started.
-    ``inputs``: the ``build_inputs`` answer (the plan's brief, the concept picture, the detail and review settings
-    and the limits); ``local``: ``{tool: fn(args)}`` for tools answered on this worker thread, not Blender's main
+    ``inputs``: the ``build_inputs`` answer (the plan's brief, the concept picture, the detail and review settings,
+    the limits, the scene's earlier prompts and the helper library's offer); ``local``: ``{tool: fn(args)}`` for tools answered on this worker thread, not Blender's main
     thread (a reference picture still drawing is waited for here). ``shrink(url) -> url`` makes a render's pictures
-    smaller before they are sent; ``None`` sends them as rendered."""
+    smaller before they are sent; ``None`` sends them as rendered.
+    Raises ``NotStarted`` when the build could not be started (busy, switched off since it was offered, no
+    connection)."""
     local = dict(local or {})
     sent_inputs = fitted(inputs)
     body = {"instruction": prompt, "surface": SURFACE, "scope": scope, "tier": tier}
@@ -97,7 +110,11 @@ def run(client, prompt, execute, post, cancel, *, stages=STAGES, scope="", sessi
         body["scopes"] = asked
     if session_id:
         body["session_id"] = session_id
-    started = client.start_scene(body)
+    try:
+        started = client.start_scene(body)
+    except Exception as exc:
+        forget(client)  # the next run asks whether it is still offered
+        raise NotStarted(str(exc) or type(exc).__name__) from exc
     run_id = started["run_id"]
     if on_session is not None and started.get("session_id"):
         on_session(started["session_id"])

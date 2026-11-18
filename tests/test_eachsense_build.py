@@ -17,6 +17,7 @@ class FakeClient:
         self.polls = list(polls)
         self.capabilities = capabilities if capabilities is not None else {"blender_scene": True}
         self.started, self.answers, self.cancelled, self.asked = None, [], 0, 0
+        self.refuses = None  # set: the error the start ends with
 
     def eachsense_capabilities(self):
         self.asked += 1
@@ -26,6 +27,8 @@ class FakeClient:
 
     def start_scene(self, body):
         self.started = body
+        if self.refuses is not None:
+            raise self.refuses
         return {"run_id": "run-1", "status": "running", "session_id": "sess-1"}
 
     def get_scene(self, _run_id):
@@ -167,6 +170,34 @@ class RunTest(unittest.TestCase):
         client = FakeClient([ApiError("Network error: refused")])
         with self.assertRaises(ApiError):
             drive(client)
+
+    def test_a_build_each_sense_does_not_take_is_not_started_and_asks_again_whether_it_is_offered(self):
+        eachsense_build._offers.clear()
+        client = FakeClient([poll(status="done", reply="Never read.")])
+        self.assertTrue(eachsense_build.offered(client))
+        client.refuses = ApiError("Every build worker here is busy; try again in a moment.", status=429)
+        with self.assertRaises(eachsense_build.NotStarted) as raised:
+            drive(client)
+        self.assertIn("busy", str(raised.exception))
+        self.assertEqual((client.answers, client.cancelled), ([], 0))  # nothing ran there
+        client.refuses = None
+        self.assertTrue(eachsense_build.offered(client))
+        self.assertEqual(client.asked, 2)  # the kept answer was dropped
+
+    def test_a_retry_from_the_detail_stage_asks_for_the_stages_after_it(self):
+        client = FakeClient([poll(status="done", reply="Done.")])
+        drive(client, stages=("detail", "materials", "light", "camera", "check"))
+        self.assertEqual(client.started["scopes"], ["materials", "light", "camera", "check"])
+
+    def test_a_free_asset_runs_here_and_shows_on_the_bar(self):
+        client = FakeClient([
+            poll("materials", tool=tool(1, "free_texture", description="red brick", material="Wall")),
+            poll(status="done", reply="Painted."),
+        ])
+        _result, events, ran = drive(client, execute=lambda name, args: {"ok": True, "name": "red_brick_03"})
+        self.assertEqual(ran, ["free_texture"])
+        self.assertEqual(client.answers, [(1, {"ok": True, "name": "red_brick_03"}, "")])
+        self.assertEqual([e["summary"] for e in events if e["type"] == "tool"], ["free texture: red brick"] * 2)
 
     def test_all_five_stages_send_no_scopes(self):
         client = FakeClient([poll(status="done")])

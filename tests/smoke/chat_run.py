@@ -732,3 +732,76 @@ def test_chat_session():
         chat_run._sessions["lines"].clear()
         chat_run.cancel(drop_build=True)
         chat_run.reset_view()
+
+
+def test_chat_eachsense():
+    """A Scene-tab build each::sense offers: one it does not take runs on the local loop, and one it takes gets
+    what this Blender brings, the scene's earlier prompts among it."""
+    from eachlabs import chat_run
+    from eachlabs.api_client import ApiError
+    from eachlabs.chat import eachsense_build
+
+    chat_run.cancel(drop_build=True)
+    chat_run.reset_view()
+    scene = bpy.data.scenes.new("eachlabs_eachsense")
+    scene.render.fps, scene.render.fps_base = 24, 1.0
+    context = types.SimpleNamespace(scene=scene, preferences=bpy.context.preferences)
+    real = preferences.eachsense_builds
+    sent = {"started": [], "answers": [], "fail": None, "polls": []}
+
+    def start_scene(self, body, timeout=None):
+        if sent["fail"] is not None:
+            raise sent["fail"]
+        sent["started"].append(body)
+        return {"run_id": "run-1", "status": "running", "session_id": "sess-1"}
+
+    def get_scene(self, run_id, timeout=None):
+        return sent["polls"].pop(0) if len(sent["polls"]) > 1 else sent["polls"][0]
+
+    def answer_scene_tool(self, run_id, seq, result=None, error="", timeout=None):
+        sent["answers"].append((seq, result, error))
+
+    patched = {"eachsense_capabilities": lambda self, timeout=None: {"blender_scene": True},
+               "start_scene": start_scene, "get_scene": get_scene, "answer_scene_tool": answer_scene_tool,
+               "cancel_scene": lambda self, run_id, timeout=None: {}}
+    try:
+        preferences.eachsense_builds = lambda context=None: True
+        eachsense_build._offers.clear()
+        with offline_api() as client:
+            for name, fn in patched.items():
+                setattr(client, name, fn)
+            sent["fail"] = ApiError("Every build worker here is busy; try again in a moment.", status=429)
+            client.chat_llm = FakeLLM(STREET + CAMERA + CHECK + [text_reply("A street.")])
+            chat_run.start(context, "a street at dusk")
+            _chat_drive()
+            check("each::sense: a build it does not take runs on the local loop",
+                  chat_run.STATE.status == "done" and bool(client.chat_llm.messages) and not sent["started"]
+                  and len(scene.objects) > 0, "%s %s" % (chat_run.STATE.status, chat_run.STATE.error))
+            check("each::sense: after a refused start the next run asks again whether it is offered",
+                  not eachsense_build._offers, str(eachsense_build._offers))
+
+            sent["fail"] = None
+            sent["polls"] = [
+                {"status": "running", "step": "", "stages": [],
+                 "tool": {"seq": 1, "name": "build_inputs", "args": {}, "version": 1}},
+                {"status": "done", "step": "", "stages": [{"name": "layout", "ok": True}],
+                 "reply": "Added a kiosk."}]
+            client.chat_llm = FakeLLM([])
+            chat_run.start(context, "add a kiosk")
+            _chat_drive()
+            brought = sent["answers"][0][1] if sent["answers"] else {}
+            check("each::sense: a build it takes ends with its reply",
+                  chat_run.STATE.status == "done" and "Added a kiosk." in chat_run.STATE.reply
+                  and len(sent["started"]) == 1 and "add a kiosk" in sent["started"][0]["instruction"],
+                  "%s %s %s" % (chat_run.STATE.status, chat_run.STATE.error, sent["started"]))
+            check("each::sense: the build gets the scene's earlier prompts, the helper offer and free assets",
+                  brought.get("earlier") == ["a street at dusk"] and isinstance(brought.get("library"), str)
+                  and isinstance(brought.get("assets"), bool), str(brought)[:300])
+    finally:
+        preferences.eachsense_builds = real
+        eachsense_build._offers.clear()
+        for name in patched:
+            if name in vars(blender_fakes.FakeClient):
+                delattr(blender_fakes.FakeClient, name)
+        chat_run.cancel(drop_build=True)
+        chat_run.reset_view()
