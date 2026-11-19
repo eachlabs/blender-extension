@@ -347,7 +347,7 @@ def _eachsense_inputs(run, stages, objects, left, concept, reviewing):
         "library": getattr(run, "library_offer", "") or "",
         "assets": bool(run.free_assets_on),
         "limits": {"total_rounds": limits.total_rounds, "layout_rounds": limits.rounds_for("layout"),
-                   "extra_rounds": limits.extra_rounds,
+                   "extra_rounds": limits.extra_rounds, "max_failures": limits.max_failures,
                    **({"detail_rounds": limits.detail_rounds} if limits.detail_rounds is not None else {})},
     }
 
