@@ -53,6 +53,8 @@ def main():
         run("scene_report", "test_camera_view_room")
         run("chat_run", "test_chat_run")
         run("chat_run", "test_chat_follow_up")
+        run("chat_run", "test_chat_session")
+        run("chat_run", "test_chat_eachsense")
         run("objects_3d", "test_generated_objects")
         run("chat_run", "test_partly_done_stage")
         run("selection", "test_find_and_selection")

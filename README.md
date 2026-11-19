@@ -149,6 +149,7 @@ also starts a new scene.
 | Send | `Enter` or the orange button |
 | Start a new line | `Shift+Enter` |
 | Reuse an earlier prompt | `↑` and `↓` |
+| Read the scene's chat history | The clock button; scroll with the wheel or `Page Up` / `Page Down`, `Esc` closes it |
 | Give the keys back to Blender | `Esc`, or click outside the bar |
 | Stop a run | the stop button, or `Esc` while the bar has focus; what was built is kept |
 | Change what was built | type the change, such as *make the lamps warmer*, and press `Enter` |
@@ -333,6 +334,16 @@ Under *3D objects*:
   the rest of the run, and deleted from your computer once it is read.
 - A model that does not take pictures gets the same check as text instead, and no more pictures for the rest
   of the session. Turn it off under *Chat* in the preferences.
+
+### Chat history
+
+Each scene chat's prompts and replies are stored with your each::labs organization, so a `.blend` you open again
+still knows its earlier requests: they are back in the prompt history, and the next prompt in that scene gets them
+as context. The clock button beside the settings button opens the whole chat above the input: every prompt and
+what the chat answered, with how the run ended and its cost. Scroll it with the mouse wheel, Page Up and Page Down,
+or its arrows; Esc closes it. Only the text is stored, never the scene or its pictures. Storing never slows or stops a run, and it
+does nothing while each::labs does not store chats for your organization. Turn it off with *Keep chat history in
+each::labs* under *Chat* in the preferences.
 
 ### Scene review
 

@@ -31,6 +31,11 @@ TEXTS = {
     T.TAB_CLEAR: "Clear the selection. The next prompt then adds a new thing instead of changing this one.",
     "quality": "Prototype builds a quick draft for about $0.5. Final builds full detail with the models set in "
                "Preferences, for about $5–10. Click to choose.",
+    "history": "Show this scene's chat history: your earlier prompts and what the chat answered. Click again to "
+               "close it.",
+    "history_close": "Close the chat history (Esc).",
+    "history_up": "Scroll to earlier prompts. The mouse wheel and Page Up do the same.",
+    "history_down": "Scroll to later prompts. The mouse wheel and Page Down do the same.",
     "settings": "Open the add-on's preferences: your API key, the models, rounds and checks.",
     "send": "Send the prompt (Enter). Shift+Enter starts a new line.",
     "stop": "Stop the run (Esc). What was built stays.",

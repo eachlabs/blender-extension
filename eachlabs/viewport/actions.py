@@ -6,7 +6,7 @@ import time
 from .. import chat_run, compat, preferences
 from . import draw, live
 from ..chat import selection, video_tab
-from ..ui import bar_state, tokens as T, video_texts as V
+from ..ui import bar_state, history_rows, tokens as T, video_texts as V
 
 
 def focus(context=None):
@@ -20,8 +20,21 @@ def focus(context=None):
 
 def close_menus():
     ui = live.overlay.UI
-    ui["quality_menu"] = ui["camera_menu"] = False
+    ui["quality_menu"] = ui["camera_menu"] = ui["history_open"] = False
     ui["video_menu"] = ""
+
+
+def scroll_history(delta):
+    """Move the open history's view by ``delta`` logical px (up, towards earlier prompts, is positive), as far as
+    the widest drawn bar lets it go."""
+    ui = live.overlay.UI
+    furthest = 0.0
+    for placed in live.overlay._placed.values():
+        width, state = placed[2], placed[4]
+        if state.history_open:
+            furthest = max(furthest, history_rows.max_scroll(state.history, width - T.PAD_LEFT - T.PAD_RIGHT))
+    ui["history_scroll"] = min(max(0.0, ui["history_scroll"] + delta), furthest)
+    draw.tag_redraw()
 
 
 def blur():
@@ -69,7 +82,7 @@ def submit(context):
         return False
     if chat_run.STATE.running or not draw.current_state().send_enabled or not live.overlay.FIELD.text.strip():
         return False
-    live.overlay.UI["quality_menu"] = False
+    live.overlay.UI["quality_menu"] = live.overlay.UI["history_open"] = False
     if _ask_first(context):
         live.overlay.UI["consent"] = True
         draw.tag_redraw()
@@ -144,8 +157,20 @@ def _act(context, name):
     if name == "quality":  # the menu opens with the keys, so Esc closes it
         live.overlay.UI["quality_menu"] = not live.overlay.UI["quality_menu"] and not chat_run.STATE.running
         live.overlay.UI["camera_menu"], live.overlay.UI["video_menu"] = False, ""
+        live.overlay.UI["history_open"] = False
         if live.overlay.UI["quality_menu"] and not live.overlay.UI["focused"]:
             focus(context)
+    elif name == "history":  # opens with the keys, so Esc closes it and the wheel scrolls it
+        live.overlay.UI["history_open"] = not live.overlay.UI["history_open"] and not chat_run.STATE.running
+        live.overlay.UI["history_scroll"] = 0.0  # it opens at the newest entry
+        live.overlay.UI["quality_menu"] = live.overlay.UI["camera_menu"] = False
+        live.overlay.UI["video_menu"] = ""
+        if live.overlay.UI["history_open"] and not live.overlay.UI["focused"]:
+            focus(context)
+    elif name == "history_close":
+        live.overlay.UI["history_open"] = False
+    elif name in ("history_up", "history_down"):
+        scroll_history(T.HISTORY_STEP * 2 * (1 if name == "history_up" else -1))
     elif name == "play_menu":  # the same: the camera menu opens with the keys
         live.overlay.UI["camera_menu"] = not live.overlay.UI["camera_menu"] and not chat_run.STATE.running
         live.overlay.UI["quality_menu"] = False

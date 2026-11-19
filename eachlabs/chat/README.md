@@ -37,6 +37,9 @@ module; `chat_run.py` keeps the run's live state and `chat_loop.py` the stage lo
 | `video_window.py` | Open Sequencer's window: the video's preview, the scene through its camera and the timeline, played together from the video's first frame and stopped at its last, the scene's last, or a wrap; its tagged workspace goes when it closes |
 | `final_settings.py` | Final render's samples, aperture from the subject's size, and file name (no `bpy`) |
 | `library_use.py`, `stage_log.py`, `debug_log.py` | The helper library in a run, the local stage log, the debug log |
+| `session_log.py` | A scene chat as an each::sense session (surface `blender`, scope the build's run id): the lines one run stores, the prompts read back, the entries the bar's history view shows, and when the API stores none (no Blender) |
+| `eachsense_build.py` | A build each::sense runs (when the API offers it and the preference is on): the plan card, the 3D orders and the concept and reference pictures run here first, then it starts the build with their outcome (its `build_inputs` answer), polls it, runs each tool it asks for here (Code check first, detail steps too) and turns what it reports into the bar's events; each::sense runs the detail stage, the renders it looks at and the scene review. The answer also carries the scene's earlier prompts, the helper library's offer and whether free Poly Haven assets are on (their files download here). Three Code check refusals in a row end the build, and a stage ends here (tidy, its undo step) when the build sends `end_stage`. A build each::sense does not take runs on the local loop. Edits, finds and the Assets and Characters tabs stay on the local loop (no Blender) |
+| `session_sync.py` | Keeping that session: a finished run stores its prompt and reply, an opened file reads its scene chats' prompts and lines; both on their own thread, never on the run's path. Also which chat's entries the history view shows |
 | `live.py` | Late access to `chat_run`'s module state |
 
 ## Neighbours
@@ -54,5 +57,5 @@ module; `chat_run.py` keeps the run's live state and `chat_loop.py` the stage lo
 ## Tests
 
 `tests/test_chat_loop.py`, `tests/test_detail*.py`, `tests/test_judge.py`, `tests/test_review.py`, `tests/test_stage_log.py`,
-`tests/test_play_cameras.py`, `tests/test_video_track.py` (unit), the
+`tests/test_play_cameras.py`, `tests/test_video_track.py`, `tests/test_session_log.py` (unit), the
 chat scenarios in `tests/smoke.py` (Blender), and the shot video's card and window in `tests/gui_check/video.py`.

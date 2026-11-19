@@ -9,7 +9,7 @@ image itself comes from `ui/`.
 | Module | Job |
 |-|-|
 | `draw.py` | Drawing the bar in the 3D view: its scale, insets around side panels, the image as a GPU texture |
-| `input.py` | Which region a press lands in, clicks, drags and double clicks in the field, and typing |
+| `input.py` | Which region a press lands in, clicks, drags and double clicks in the field, typing, and scrolling the open history |
 | `hover.py` | Tooltips: the control under the mouse, the wait before its tooltip shows, and the card in the 3D view |
 | `fold.py` | Folding the done card to one line: when it first showed, whether the mouse is on the bar, the first fold |
 | `actions.py` | What the field and the buttons do: focus, submit (on the Video tab: its confirm card), the consent card, the tabs (each keeps its own text), each action button, and the Video tab's chips and buttons through `chat/video_tab.py` |

@@ -2,6 +2,7 @@
 
 import bpy
 import threading
+import uuid
 from dataclasses import dataclass, field
 
 from .. import chat_loop, generation, preferences
@@ -127,6 +128,8 @@ class _Run:
         self.whole = False  # every stage was asked for, before Assets or Characters left out the light and camera
         self.edit_roots = []  # an edit's target root objects, set on the main thread when the edit starts
         self.request = ""  # the prompt as the person wrote it
+        self.turn = uuid.uuid4().hex[:12]  # names this run's lines in the chat's stored session
+        self.retry = False  # a retry of the last prompt: its session gets only the new answer
         self.cancel = threading.Event()
         self.thread = None
         self.name_key, self.name_index = None, {}  # ``_name_index``
