@@ -10,8 +10,10 @@ take raises ``NotStarted``: nothing ran there, so the caller builds it with the 
 request with ``execute``, the chat's own, which runs on Blender's main thread. A code step gets the Code check review
 first when one is given. What the build reports becomes the chat's usual events, so the bar, one undo step per stage
 and Show code work as they do for a run of the local loop. Everything sent back passes ``code_check.redact``.
+Three Code check refusals in a row end the build, and a stage ends when the build says so (``end_stage``).
 """
 
+import collections
 import itertools
 import json
 import time
@@ -19,6 +21,7 @@ import time
 from .. import code_check, scene_tools
 from ..api_client import ApiError
 from .run_types import RunResult, StopRun
+from .step_results import CHECK_REFUSALS
 
 SURFACE = "blender"
 STAGES = ("layout", "materials", "light", "camera", "check")  # the stages a build asks for; detail comes with them
@@ -27,7 +30,10 @@ SHOWN = ("layout", "detail", "materials", "light", "camera", "check", "fix", "co
 # The loop's own asks: measurements, the plan's lists, the detail stage's bookkeeping. No line on the bar.
 LOOP_TOOLS = ("placement_problems", "prune", "settle", "build_inputs", "generation_notes", "missing_items",
               "review_mark", "review_undo", "detail_roots", "detail_read", "detail_measure", "detail_copies",
-              "reference_picture", "candidate_stash", "candidate_restore", "candidate_drop")
+              "reference_picture", "candidate_stash", "candidate_restore", "candidate_drop", "end_stage")
+# The build's word that a stage is over. Blender tidies what the stage built and saves its undo step before it
+# answers, so the next stage starts from the tidy scene and the scene review can undo its fix stage alone.
+END_TOOL = "end_stage"
 # Renders: the bar says "Looking…" while they run instead of a tool line.
 LOOKS = ("render_frames", "review_views", "detail_look", "candidate_shot")
 CODE_TOOLS = ("run_python", "detail_step")  # a step of code: Code check reviews it first
@@ -39,6 +45,7 @@ POLL_FAILURES = 5  # failed polls in a row that end the run
 OFFER_SECONDS = 300.0  # how long an answer to "is it offered" is kept
 CANCELLED = "Stopped. What was built is kept."
 REFUSED = "Code check: %s. Rewrite the step without that."
+CHECK_STOPPED = "Code check stopped the run: %s"
 TOO_BIG = "Blender's answer (%d bytes) was too big to send; go on without it."
 
 _offers = {}  # base URL -> (offered, when it was asked)
@@ -46,6 +53,10 @@ _offers = {}  # base URL -> (offered, when it was asked)
 
 class NotStarted(Exception):
     """each::sense did not take the build; nothing of it ran there."""
+
+
+class _CheckStopped(Exception):
+    """Code check refused ``CHECK_REFUSALS`` steps in a row: the build ends, as a run of the local loop does."""
 
 
 def offered(client, now=time.monotonic):
@@ -123,7 +134,8 @@ def run(client, prompt, execute, post, cancel, *, stages=STAGES, scope="", sessi
         return code_check.redact(value, secrets)
 
     ids = itertools.count(1)
-    state = {"rounds": 0, "active": None}
+    state = {"rounds": 0, "active": None, "refusals": 0}
+    told = collections.Counter()  # stages ended through ``end_stage``: the poll's report of each is not posted again
 
     def answer(tool):
         name, args, seq = tool["name"], tool.get("args") or {}, tool["seq"]
@@ -144,13 +156,18 @@ def run(client, prompt, execute, post, cancel, *, stages=STAGES, scope="", sessi
         if name in CODE_TOOLS:
             stage = "detail" if name == "detail_step" else state["active"] or ""
             post({"type": "code", "id": call_id, "stage": stage, "code": args.get("code") or ""})
-            refused = _review(review, execute, args.get("code") or "", post)
+            refused, reviewed = _review(review, execute, args.get("code") or "", post)
             if refused:
                 reason = clean(refused)
                 post({"type": "tool", "id": call_id, "name": shown_name, "summary": label, "state": "error",
                       "detail": "Code check: " + reason})
                 client.answer_scene_tool(run_id, seq, error=REFUSED % reason.rstrip("."))
+                state["refusals"] += 1
+                if state["refusals"] >= CHECK_REFUSALS:
+                    raise _CheckStopped(CHECK_STOPPED % reason)
                 return
+            if reviewed:
+                state["refusals"] = 0
         if looking:
             post({"type": "looking", "state": True})
         try:
@@ -173,6 +190,8 @@ def run(client, prompt, execute, post, cancel, *, stages=STAGES, scope="", sessi
         if shown:
             post({"type": "tool", "id": call_id, "name": shown_name, "summary": label,
                   "state": "error" if error else "ok", "detail": str(error or "")[:300]})
+        if name == END_TOOL:
+            told[str(args.get("stage") or "")] += 1
         try:
             client.answer_scene_tool(run_id, seq, result=result)
         except ApiError as exc:  # refused (too big, most often): the build reads it as the tool's error and goes on
@@ -220,7 +239,10 @@ def run(client, prompt, execute, post, cancel, *, stages=STAGES, scope="", sessi
                 post({"type": "thinking", "since": None})
         # After the step: a poll that sees a stage end and its last round reports the round first.
         for stage in (build.get("stages") or [])[ended:]:
-            post({"type": "stage", "stage": stage["name"], "state": "done" if stage.get("ok") else "partial"})
+            if told[stage["name"]] > 0:  # Blender ended it when the build said so
+                told[stage["name"]] -= 1
+            else:  # a build that sends no ``end_stage``: the stage ends here
+                post({"type": "stage", "stage": stage["name"], "state": "done" if stage.get("ok") else "partial"})
             if stage["name"] == state["active"]:
                 state["active"] = None
         ended = len(build.get("stages") or [])
@@ -231,7 +253,7 @@ def run(client, prompt, execute, post, cancel, *, stages=STAGES, scope="", sessi
             answered = tool["seq"]
             try:
                 answer(tool)
-            except StopRun as exc:  # a step changed a setting: the build ends here
+            except (StopRun, _CheckStopped) as exc:  # a step changed a setting, or Code check stopped the run
                 try:
                     client.cancel_scene(run_id)
                 except ApiError:
@@ -263,13 +285,14 @@ def _shrunk(shrink, url):
 
 
 def _review(review, execute, code, post):
-    """Code check on a code step the filter lets through: the reason it was refused, else ``None``."""
+    """Code check on a code step the filter lets through: ``(reason, reviewed)``. ``reason`` is why it was refused,
+    else ``None``; ``reviewed`` is True when the review ran and allowed the step."""
     if review is None:
-        return None
+        return None, False
     try:
         code_check.check(code)
     except code_check.Refused:
-        return None  # the filter refuses it again when it runs, and the model reads why
+        return None, False  # the filter refuses it again when it runs, and the model reads why
     post({"type": "code_check", "state": "checking"})
     try:
         context = execute("chat_context", {})
@@ -277,11 +300,11 @@ def _review(review, execute, code, post):
         context = None
     if not isinstance(context, dict):
         post({"type": "code_check", "state": "refused", "reason": "the chat's objects could not be read"})
-        return "the chat's objects could not be read"
+        return "the chat's objects could not be read", False
     objects = context.get("objects")
     allowed, reason = review(code, objects if isinstance(objects, list) else [], str(context.get("collection") or ""))
     if allowed:
         post({"type": "code_check", "state": "allowed"})
-        return None
+        return None, True
     post({"type": "code_check", "state": "refused", "reason": reason})
-    return reason or "refused"
+    return reason or "refused", False

@@ -140,6 +140,63 @@ class RunTest(unittest.TestCase):
         self.assertEqual(client.answers, [(1, None, eachsense_build.REFUSED % "it deletes the person's objects")])
         self.assertIn({"type": "code_check", "state": "refused", "reason": "it deletes the person's objects."}, events)
 
+    def test_three_code_check_refusals_in_a_row_end_the_build(self):
+        steps = [poll("layout", tool=tool(n, "run_python", code=CODE)) for n in (1, 2, 3, 4)]
+        client = FakeClient(steps + [poll(status="done")])
+
+        def execute(name, _args):
+            return {"objects": [], "collection": "Eachlabs scene"} if name == "chat_context" else {"ok": True}
+
+        result, events, ran = drive(client, execute=execute, review=lambda *_: (False, "it deletes objects."))
+        self.assertEqual([seq for seq, _, _ in client.answers], [1, 2, 3])  # the fourth step is never asked for
+        self.assertNotIn("run_python", ran)
+        self.assertEqual(client.cancelled, 1)
+        self.assertEqual((result.status, result.message, result.failed_stage),
+                         ("stopped", eachsense_build.CHECK_STOPPED % "it deletes objects.", "layout"))
+        self.assertEqual(events[-1], {"type": "stage", "stage": "layout", "state": "failed"})
+
+    def test_a_step_code_check_allows_starts_the_count_of_refusals_again(self):
+        steps = [poll("layout", tool=tool(n, "run_python", code=CODE)) for n in (1, 2, 3, 4, 5)]
+        client = FakeClient(steps + [poll(status="done")])
+        verdicts = iter([(False, "no."), (False, "no."), (True, ""), (False, "no."), (False, "no.")])
+
+        def execute(name, _args):
+            return {"objects": [], "collection": "Eachlabs scene"} if name == "chat_context" else {"ok": True}
+
+        result, _, ran = drive(client, execute=execute, review=lambda *_: next(verdicts))
+        self.assertEqual((result.status, client.cancelled, ran.count("run_python")), ("done", 0, 1))
+
+    def test_a_stage_ends_in_blender_when_the_build_says_so_and_is_not_ended_again(self):
+        ended = [{"name": "layout", "ok": True, "text": ""}]
+        client = FakeClient([
+            poll("layout", tool=tool(1, "run_python", code=CODE)),
+            poll("layout: thinking", tool=tool(2, "end_stage", stage="layout", state="done")),
+            poll("materials", stages=ended, tool=tool(3, "read_scene")),
+            poll("", status="done", stages=ended, reply="A stall."),
+        ])
+        result, events, ran = drive(client)
+        self.assertEqual(result.status, "done")
+        # Blender ended the stage before the next stage's first tool, and answered the build.
+        self.assertEqual(ran, ["run_python", "end_stage", "read_scene"])
+        self.assertEqual(client.answers[1], (2, {}, ""))
+        # ``execute`` ended it on the main thread; the poll that lists the stage posts no second end.
+        self.assertNotIn(("layout", "done"), [(e.get("stage"), e.get("state")) for e in events if e["type"] == "stage"])
+        self.assertNotIn("end_stage", [e.get("name") for e in events if e["type"] == "tool"])
+
+    def test_a_stage_blender_could_not_end_is_ended_when_the_build_reports_it(self):
+        ended = [{"name": "layout", "ok": True, "text": ""}]
+        client = FakeClient([
+            poll("layout", tool=tool(1, "end_stage", stage="layout", state="done")),
+            poll("", status="done", stages=ended, reply="A stall."),
+        ])
+
+        def execute(_name, _args):
+            raise RuntimeError("Blender is busy")
+
+        _, events, _ = drive(client, execute=execute)
+        self.assertEqual(client.answers, [(1, None, "Blender is busy")])
+        self.assertIn({"type": "stage", "stage": "layout", "state": "done"}, events)
+
     def test_stop_cancels_the_build_once_and_keeps_what_was_built(self):
         cancel = threading.Event()
         cancel.set()

@@ -781,9 +781,15 @@ def test_chat_eachsense():
                   not eachsense_build._offers, str(eachsense_build._offers))
 
             sent["fail"] = None
+            kiosk = "# Add a kiosk\nimport bpy\nbpy.ops.mesh.primitive_cube_add(size=2, location=(40, 0, 1))"
             sent["polls"] = [
                 {"status": "running", "step": "", "stages": [],
                  "tool": {"seq": 1, "name": "build_inputs", "args": {}, "version": 1}},
+                {"status": "running", "step": "layout: Add a kiosk", "stages": [],
+                 "tool": {"seq": 2, "name": "run_python", "args": {"code": kiosk}, "version": 1}},
+                {"status": "running", "step": "layout: thinking", "stages": [],
+                 "tool": {"seq": 3, "name": "end_stage", "args": {"stage": "layout", "state": "done"},
+                          "version": 1}},
                 {"status": "done", "step": "", "stages": [{"name": "layout", "ok": True}],
                  "reply": "Added a kiosk."}]
             client.chat_llm = FakeLLM([])
@@ -794,6 +800,11 @@ def test_chat_eachsense():
                   chat_run.STATE.status == "done" and "Added a kiosk." in chat_run.STATE.reply
                   and len(sent["started"]) == 1 and "add a kiosk" in sent["started"][0]["instruction"],
                   "%s %s %s" % (chat_run.STATE.status, chat_run.STATE.error, sent["started"]))
+            ended = [answer for answer in sent["answers"] if answer[0] == 3]
+            check("each::sense: a stage ends in Blender when the build says so, once",
+                  ended == [(3, {"changed": True}, "")] and chat_run.STATE.stages.get("layout") == "done"
+                  and chat_run.STATE.changed.count("layout") == 1,
+                  "%s %s %s" % (sent["answers"][1:], chat_run.STATE.stages, chat_run.STATE.changed))
             check("each::sense: the build gets the scene's earlier prompts, the helper offer and free assets",
                   brought.get("earlier") == ["a street at dusk"] and isinstance(brought.get("library"), str)
                   and isinstance(brought.get("assets"), bool), str(brought)[:300])

@@ -66,6 +66,11 @@ def _work(run, prompt, stages):
                 return review_run.views(run.build, _main_things(run))
             finally:
                 undo_watch._quiet()
+        if name == "end_stage":  # an each::sense build's stage is over: tidy, its undo step, the bar's dot
+            before = len(chat_run.STATE.changed)
+            events._apply(run, {"type": "stage", "stage": str(args.get("stage") or ""),
+                                "state": "partial" if args.get("state") == "partial" else "done"})
+            return {"changed": len(chat_run.STATE.changed) > before}
         if name == "review_mark":
             return review_run.mark(run)
         if name == "review_undo":
