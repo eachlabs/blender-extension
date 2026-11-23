@@ -9,6 +9,7 @@ from . import texture_jobs
 
 
 NOT_BUILT = "Not built: %s."
+MISPLACED = "Built, but not where planned: %s."
 HOLLOW_NOTE = ("%s holds no geometry of its own: what the person means are other objects of yours, found by where "
                "they stand and what they are (read_scene lists them). Change those, and attach each to it.")
 
@@ -120,7 +121,8 @@ def outcome_lines(run):
         return lines
     said = set()
     jobs = {job.name: job for job in chat_run._jobs(run)}
-    missing = {item.name for item in _missing(run)}
+    absent = _missing(run, placed=False)
+    missing = {item.name for item in absent}
     for item in run.plan.three_d:
         job = jobs.get(item.name)
         if job is not None and job.state == generation.DONE:
@@ -135,9 +137,14 @@ def outcome_lines(run):
             lines.append(chat_run.FAILED_REPLY % (item.name, job.error if job is not None and job.error else
                                          "it was never ordered"))
         said.add(item.name)
-    names = [item.name for item in _missing(run) if item.name not in said]
+    names = [item.name for item in absent if item.name not in said]
     if names:
         lines.append(not_built_line(names))
+    # A thing that is in the scene but not on its holder was built: saying "Not built" would offer to build it again.
+    off = [item for item in _missing(run) if item.name not in missing and item.name not in said]
+    if off:
+        lines.append(MISPLACED % ", ".join("the %s (on or in the %s)" % (" ".join(i.name.split()), i.holder)
+                                           for i in off))
     return lines
 
 
@@ -185,17 +192,22 @@ def not_built_line(names):
 
 
 
-def _missing(run):
-    """Main thread: the plan's items not in the scene; a 3D item whose model arrived is in it."""
+def _missing(run, placed=True):
+    """Main thread: the plan's items not in the scene; a 3D item whose model arrived is in it. With ``placed``, an
+    item that is there but not on or in its holder is listed too: the stage loop moves it; the reply and the
+    bar's button ask without it."""
     if run.plan is None:
         return []
     try:
         names = [o.name for o in run.build._objects()]
+        if placed:
+            run.build.scene.view_layers[0].update()  # a thing a step just moved is measured where it now stands
     except (RuntimeError, ReferenceError):  # the scene is gone
         return []
     done = {job.name for job in chat_run._jobs(run) if job.state == generation.DONE}
     names += [n for n in run.targets if n in run.build.scene.objects]  # the person's objects they pointed at
-    found = plan3d.missing(run.plan, names, done, placed=lambda item, holder: _on_holder(run.build, item, holder))
+    found = plan3d.missing(run.plan, names, done,
+                           placed=(lambda item, holder: _on_holder(run.build, item, holder)) if placed else None)
     # An item naming what stood in the scene before this prompt, or what the request pointed at, is not new: when it
     # is gone, the request removed it ("remove the lighthouse and put a stall there" plans the stall, never a
     # lighthouse to build).

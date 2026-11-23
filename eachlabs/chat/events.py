@@ -123,7 +123,8 @@ def _finish(run, result, cost):
         chat_run.STATE.reply, chat_run.STATE.error = result.message or chat_run.STATE.reply, ""
         chat_run.STATE.reply = "\n".join([chat_run.STATE.reply] + plan_flow.outcome_lines(run)).strip()  # whatever the model wrote
         try:  # what the plan asked for and the run did not build: the bar offers to build it
-            chat_run.STATE.missing = [item.name for item in plan_flow._missing(run)] if run.plan is not None else []
+            chat_run.STATE.missing = ([item.name for item in plan_flow._missing(run, placed=False)]
+                                      if run.plan is not None else [])  # a thing off its holder is not built again
         except (RuntimeError, ReferenceError):
             chat_run.STATE.missing = []
         chat_run.STATE.unchanged = run.before is not None and _fingerprint(run.build) == run.before
