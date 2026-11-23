@@ -718,6 +718,20 @@ def test_chat_session():
                   and [line["content"] for line in client.sessions[run_id]["lines"]][2] == "add a kiosk",
                   str(client.sessions)[:300])
 
+            # Online access off: opening the file asks the API nothing.
+            asked, real_list, real_online = [], client.list_sessions, compat.online_problem
+            client.list_sessions = lambda self, *args, **kwargs: asked.append(args) or real_list(self, *args, **kwargs)
+            compat.online_problem = lambda: "Online access is off."
+            try:
+                session_sync.restore({run_id})
+                for thread in threading.enumerate():
+                    if thread.name == "eachlabs-session-read":
+                        thread.join(5)
+            finally:
+                client.list_sessions, compat.online_problem = real_list, real_online
+            check("session: with online access off an opened file's scene chat makes no request",
+                  not asked and not chat_run._sessions["restored"] and not chat_run._sessions["off"], str(asked))
+
             client.sessions = None  # an API without stored chats
             client.chat_llm = FakeLLM([code_reply(KIOSK_CODE), text_reply("Another kiosk.")])
             chat_run.start(context, "add another kiosk")

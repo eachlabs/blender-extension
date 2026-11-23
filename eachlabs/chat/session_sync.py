@@ -5,7 +5,7 @@ with history turned off, or for an organization whose chats each::sense does not
 
 import threading
 
-from .. import code_check, main_thread, preferences, scene_build
+from .. import code_check, compat, main_thread, preferences, scene_build
 from .live import chat_run
 from . import debug_log, session_log
 
@@ -61,7 +61,7 @@ def restore(run_ids, context=None):
     chat_run._sessions["lines"].clear()
     try:
         scopes = sorted(run_ids)[:RESTORE_MAX]
-        if not scopes or not _on(context):
+        if not scopes or not _on(context) or compat.online_problem():  # an opened file never goes online by itself
             return
         client = preferences.client(context)
         if not client.api_key:
