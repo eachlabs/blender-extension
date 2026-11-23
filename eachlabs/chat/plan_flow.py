@@ -232,12 +232,32 @@ def _on_holder(build, item, holder):
                 continue
             low, high = scene_build._box(part)
             x, y = (low[0] + high[0]) / 2, (low[1] + high[1]) / 2
+            start, reach = Vector((x, y, low[2] + 0.001)), REST_GAP_M + 0.002
             hit, where, _normal, _index, hit_obj, _matrix = scene.ray_cast(
-                depsgraph, Vector((x, y, low[2] + 0.001)), Vector((0.0, 0.0, -1.0)), distance=REST_GAP_M + 0.002)
+                depsgraph, start, Vector((0.0, 0.0, -1.0)), distance=reach)
             if hit and getattr(hit_obj, "original", hit_obj).session_uid in holder_ids:
+                return True
+            # The scene's ray starts inside the thing, so it meets the thing's own underside first (a carpet a
+            # few millimetres above the floor). Ask each holder part alone.
+            if any(_under(holder_part, depsgraph, start, reach) for holder_part in holder_parts):
                 return True
             for b_low, b_high in holder_boxes:
                 inside = all(b_low[i] <= (x, y)[i] <= b_high[i] for i in range(2)) and b_low[2] <= low[2] <= b_high[2]
                 if inside and high[2] >= b_high[2] + SHOWS_M:
                     return True
     return False
+
+
+def _under(holder_part, depsgraph, start, reach):
+    """True when ``holder_part``'s own surface is within ``reach`` metres straight below ``start`` (world space)."""
+    from mathutils import Vector
+
+    try:
+        evaluated = holder_part.evaluated_get(depsgraph)
+        to_local = evaluated.matrix_world.inverted()
+        origin, end = to_local @ start, to_local @ (start - Vector((0.0, 0.0, reach)))
+        if (end - origin).length == 0.0:
+            return False
+        return bool(evaluated.ray_cast(origin, end - origin, distance=(end - origin).length)[0])
+    except Exception:  # not a mesh, or a matrix that cannot be inverted: the scene's ray has the last word
+        return False
