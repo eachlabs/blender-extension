@@ -53,7 +53,17 @@ class RefusedTest(unittest.TestCase):
         for code in ("import os", "import sys", "import subprocess", "import socket", "import shutil",
                      "import pathlib", "import importlib", "import ctypes", "from os import path",
                      "bpy.utils.os.listdir('.')", "x = os", "from bpy import sys",
-                     "getattr(bpy.utils, 'os')"):
+                     "getattr(bpy.utils, 'os')", "from bpy import socket", "bpy.utils.socket.socket()",
+                     "getattr(bpy.utils, 'socket')", "import bpy as socket", "x = bpy.utils\nx.socket"):
+            self.assertRefused("system-module", code)
+
+    def test_a_node_socket_may_be_called_socket(self):
+        for code in ("for socket in node.inputs:\n    socket.default_value = 1.0",
+                     "socket = node.outputs['Color']\ntree.links.new(socket, bsdf.inputs['Base Color'])",
+                     "def link(tree, socket):\n    return tree.links.new(socket, socket)",
+                     "names = [socket.name for socket in node.inputs]", "connect(socket=node.inputs[0])"):
+            self.assertIsNone(refused_rule(code), code)
+        for code in ("for os in things:\n    pass", "sys = 1", "def f(subprocess):\n    pass"):
             self.assertRefused("system-module", code)
 
     def test_blocked_names(self):

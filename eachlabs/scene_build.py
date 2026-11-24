@@ -46,6 +46,7 @@ class SceneBuild(SceneReport, GeneratedLooks, ShadowLimit, CameraView, PartGaps,
         self._changes = 0  # steps that changed the scene since the last end_stage
         self.pushes = 0  # undo steps end_stage pushed: the scene review undoes its fix only when it is the last
         self.prompts = []  # the prompts sent to this build, newest first
+        self.session_id = None  # its each::sense session, once a run stored its lines or an opened file found it
         self.code_runs = []  # {"prompt", "steps"} for each run of this build, oldest first, for Show code
         # Generated 3D objects by job id, oldest first: description, tier, status (pending | ready | failed), copies;
         # chat_run keeps it up to date and read_scene shows it as generated_3d.

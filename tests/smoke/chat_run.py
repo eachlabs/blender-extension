@@ -13,7 +13,8 @@ from eachlabs import chat_loop, compat, main_thread, pipeline, preferences
 from tests import blender_fakes
 from tests.blender_fakes import (BAD_CAMERA, CAMERA, CHECK, FakeLLM, KIOSK_CODE, STREET, code_reply, offline_api,
                                  text_reply, tool_reply)
-from tests.smoke.chat_common import _ScriptLLM, _chat_cameras, _chat_drive, _scene_in, _tool_contents
+from tests.smoke.chat_common import (_ScriptLLM, _chat_cameras, _chat_drive, _scene_in, _tick_until,
+                                     _tool_contents)
 from tests.smoke.common import BOX_CODE, check
 
 
@@ -647,3 +648,185 @@ def test_chat_follow_up():
             bpy.data.collections.remove(child)
         bpy.data.collections.remove(coll)
     bpy.data.scenes.remove(scene)
+
+
+
+def test_chat_session():
+    """A run stores its prompt and reply on the scene chat's each::sense session. After the file is opened again
+    the next prompt knows the earlier one and continues the same session. An API that stores no chats never stops
+    a run."""
+    from eachlabs import chat_run
+    from eachlabs.chat import session_sync
+
+    chat_run.cancel(drop_build=True)
+    chat_run.reset_view()
+    scene = bpy.data.scenes.new("eachlabs_session")
+    scene.render.fps, scene.render.fps_base = 24, 1.0
+    context = types.SimpleNamespace(scene=scene, preferences=bpy.context.preferences)
+    file_runs = chat_run._file_runs
+    try:
+        with offline_api() as client:
+            client.sessions, chat_run._sessions["off"] = {}, False
+            client.chat_llm = FakeLLM(STREET + CAMERA + CHECK + [text_reply("A street.")])
+            chat_run.start(context, "a street at dusk")
+            _chat_drive()
+            build = chat_run._build
+            _tick_until(lambda: build.session_id is not None)
+            stored = client.sessions.get(build.run_id) or {"lines": []}
+            check("session: a run stores its prompt and its reply under the build's run id",
+                  chat_run.STATE.status == "done" and build.session_id == stored.get("id")
+                  and [(line["role"], line["kind"]) for line in stored["lines"]] == [("user", "user"),
+                                                                                    ("assistant", "assistant")]
+                  and stored["lines"][0]["content"] == "a street at dusk"
+                  and stored["lines"][1]["detail"]["status"] == "done", str(stored["lines"])[:300])
+
+            shown = session_sync.transcript(scene)
+            check("session: the bar's history view has the run's prompt and answer",
+                  [(e["role"], e["status"]) for e in shown] == [("user", ""), ("assistant", "done")]
+                  and shown[0]["text"] == "a street at dusk", str(shown)[:300])
+
+            # The file is opened again: this session's builds are forgotten, the collection's tag stays.
+            run_id, session_id = build.run_id, build.session_id
+            chat_run.cancel(drop_build=True)
+            chat_run.reset_view()
+            chat_run._builds.clear()
+            chat_run._file_runs = frozenset({run_id})
+            chat_run.STATE.history = []
+            session_sync.restore({run_id})
+            _tick_until(lambda: chat_run.STATE.history == ["a street at dusk"])
+            check("session: an opened file's stored prompts join the bar's history",
+                  chat_run.STATE.history == ["a street at dusk"], str(chat_run.STATE.history))
+            shown = session_sync.transcript(scene)
+            check("session: an opened file's stored chat fills the history view before any new prompt",
+                  chat_run._build is None and [e["text"] for e in shown][:1] == ["a street at dusk"]
+                  and len(shown) == 2 and shown[1]["status"] == "done", str(shown)[:300])
+
+            client.chat_llm = FakeLLM([code_reply(KIOSK_CODE), text_reply("Added a kiosk.")])
+            chat_run.start(context, "add a kiosk")
+            _chat_drive()
+            sent = client.chat_llm.messages
+            _tick_until(lambda: len(client.sessions[run_id]["lines"]) == 4)
+            check("session: the first prompt after reopening names the stored earlier request",
+                  chat_run._build.run_id == run_id and bool(sent)
+                  and "- a street at dusk" in sent[0][1]["content"], sent[0][1]["content"][:200] if sent else "")
+            shown = session_sync.transcript(scene)
+            check("session: a follow-up joins the stored chat in the history view",
+                  [e["text"] for e in shown if e["role"] == "user"] == ["a street at dusk", "add a kiosk"]
+                  and len(shown) == 4, str(shown)[:300])
+            check("session: the reopened chat continues its session instead of starting another",
+                  chat_run._build.session_id == session_id and list(client.sessions) == [run_id]
+                  and [line["content"] for line in client.sessions[run_id]["lines"]][2] == "add a kiosk",
+                  str(client.sessions)[:300])
+
+            # Online access off: opening the file asks the API nothing.
+            asked, real_list, real_online = [], client.list_sessions, compat.online_problem
+            client.list_sessions = lambda self, *args, **kwargs: asked.append(args) or real_list(self, *args, **kwargs)
+            compat.online_problem = lambda: "Online access is off."
+            try:
+                session_sync.restore({run_id})
+                for thread in threading.enumerate():
+                    if thread.name == "eachlabs-session-read":
+                        thread.join(5)
+            finally:
+                client.list_sessions, compat.online_problem = real_list, real_online
+            check("session: with online access off an opened file's scene chat makes no request",
+                  not asked and not chat_run._sessions["restored"] and not chat_run._sessions["off"], str(asked))
+
+            client.sessions = None  # an API without stored chats
+            client.chat_llm = FakeLLM([code_reply(KIOSK_CODE), text_reply("Another kiosk.")])
+            chat_run.start(context, "add another kiosk")
+            _chat_drive()
+            _tick_until(lambda: chat_run._sessions["off"])
+            check("session: an API that stores no chats leaves the run done and turns the history off",
+                  chat_run.STATE.status == "done" and chat_run._sessions["off"], chat_run.STATE.status)
+    finally:
+        blender_fakes.FakeClient.sessions = None
+        chat_run._sessions["off"], chat_run._file_runs = False, file_runs
+        chat_run._sessions["restored"].clear()
+        chat_run._sessions["lines"].clear()
+        chat_run.cancel(drop_build=True)
+        chat_run.reset_view()
+
+
+def test_chat_eachsense():
+    """A Scene-tab build each::sense offers: one it does not take runs on the local loop, and one it takes gets
+    what this Blender brings, the scene's earlier prompts among it."""
+    from eachlabs import chat_run
+    from eachlabs.api_client import ApiError
+    from eachlabs.chat import eachsense_build
+
+    chat_run.cancel(drop_build=True)
+    chat_run.reset_view()
+    scene = bpy.data.scenes.new("eachlabs_eachsense")
+    scene.render.fps, scene.render.fps_base = 24, 1.0
+    context = types.SimpleNamespace(scene=scene, preferences=bpy.context.preferences)
+    real = preferences.eachsense_builds
+    sent = {"started": [], "answers": [], "fail": None, "polls": []}
+
+    def start_scene(self, body, timeout=None):
+        if sent["fail"] is not None:
+            raise sent["fail"]
+        sent["started"].append(body)
+        return {"run_id": "run-1", "status": "running", "session_id": "sess-1"}
+
+    def get_scene(self, run_id, timeout=None):
+        return sent["polls"].pop(0) if len(sent["polls"]) > 1 else sent["polls"][0]
+
+    def answer_scene_tool(self, run_id, seq, result=None, error="", timeout=None):
+        sent["answers"].append((seq, result, error))
+
+    patched = {"eachsense_capabilities": lambda self, timeout=None: {"blender_scene": True},
+               "start_scene": start_scene, "get_scene": get_scene, "answer_scene_tool": answer_scene_tool,
+               "cancel_scene": lambda self, run_id, timeout=None: {}}
+    try:
+        preferences.eachsense_builds = lambda context=None: True
+        eachsense_build._offers.clear()
+        with offline_api() as client:
+            for name, fn in patched.items():
+                setattr(client, name, fn)
+            sent["fail"] = ApiError("Every build worker here is busy; try again in a moment.", status=429)
+            client.chat_llm = FakeLLM(STREET + CAMERA + CHECK + [text_reply("A street.")])
+            chat_run.start(context, "a street at dusk")
+            _chat_drive()
+            check("each::sense: a build it does not take runs on the local loop",
+                  chat_run.STATE.status == "done" and bool(client.chat_llm.messages) and not sent["started"]
+                  and len(scene.objects) > 0, "%s %s" % (chat_run.STATE.status, chat_run.STATE.error))
+            check("each::sense: after a refused start the next run asks again whether it is offered",
+                  not eachsense_build._offers, str(eachsense_build._offers))
+
+            sent["fail"] = None
+            kiosk = "# Add a kiosk\nimport bpy\nbpy.ops.mesh.primitive_cube_add(size=2, location=(40, 0, 1))"
+            sent["polls"] = [
+                {"status": "running", "step": "", "stages": [],
+                 "tool": {"seq": 1, "name": "build_inputs", "args": {}, "version": 1}},
+                {"status": "running", "step": "layout: Add a kiosk", "stages": [],
+                 "tool": {"seq": 2, "name": "run_python", "args": {"code": kiosk}, "version": 1}},
+                {"status": "running", "step": "layout: thinking", "stages": [],
+                 "tool": {"seq": 3, "name": "end_stage", "args": {"stage": "layout", "state": "done"},
+                          "version": 1}},
+                {"status": "done", "step": "", "stages": [{"name": "layout", "ok": True}],
+                 "reply": "Added a kiosk."}]
+            client.chat_llm = FakeLLM([])
+            chat_run.start(context, "add a kiosk")
+            _chat_drive()
+            brought = sent["answers"][0][1] if sent["answers"] else {}
+            check("each::sense: a build it takes ends with its reply",
+                  chat_run.STATE.status == "done" and "Added a kiosk." in chat_run.STATE.reply
+                  and len(sent["started"]) == 1 and "add a kiosk" in sent["started"][0]["instruction"],
+                  "%s %s %s" % (chat_run.STATE.status, chat_run.STATE.error, sent["started"]))
+            ended = [answer for answer in sent["answers"] if answer[0] == 3]
+            check("each::sense: a stage ends in Blender when the build says so, once",
+                  ended == [(3, {"changed": True}, "")] and chat_run.STATE.stages.get("layout") == "done"
+                  and chat_run.STATE.changed.count("layout") == 1,
+                  "%s %s %s" % (sent["answers"][1:], chat_run.STATE.stages, chat_run.STATE.changed))
+            check("each::sense: the build gets the scene's earlier prompts, the helper offer and free assets",
+                  brought.get("earlier") == ["a street at dusk"] and isinstance(brought.get("library"), str)
+                  and isinstance(brought.get("assets"), bool), str(brought)[:300])
+    finally:
+        preferences.eachsense_builds = real
+        eachsense_build._offers.clear()
+        for name in patched:
+            if name in vars(blender_fakes.FakeClient):
+                delattr(blender_fakes.FakeClient, name)
+        chat_run.cancel(drop_build=True)
+        chat_run.reset_view()

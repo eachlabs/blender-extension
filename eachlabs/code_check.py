@@ -26,6 +26,9 @@ BLOCKED_NAMES = frozenset((
 ))
 ATTRIBUTE_FUNCTIONS = frozenset(("getattr", "setattr", "delattr"))
 SYSTEM_MODULES = frozenset(("os", "sys", "subprocess", "socket", "shutil", "pathlib", "importlib", "ctypes"))
+# A node's inputs and outputs are sockets, so steps name a variable ``socket``. A variable cannot reach the module:
+# the import, an attribute (``bpy.utils.socket``) and ``getattr(x, "socket")`` stay refused.
+VARIABLE_NAMES = frozenset(("socket",))
 BLOCKED_PATHS = (
     "bpy.ops.wm", "bpy.ops.preferences", "bpy.ops.extensions", "bpy.data.libraries",
     "bpy.utils.register", "bpy.utils.unregister", "bpy.app.handlers", "bpy.app.timers", "bpy.msgbus",
@@ -144,8 +147,9 @@ def _literal_name(call):
     return None
 
 
-def _name_rule(name, stored=False):
-    """``(rule, subject)`` for a variable name on its own, or ``None``."""
+def _name_rule(name, stored=False, variable=False):
+    """``(rule, subject)`` for a name on its own, or ``None``. ``variable`` says it is a plain variable, argument or
+    function name, where ``VARIABLE_NAMES`` are allowed."""
     low = name.lower()
     if name in CREDENTIAL_ATTRS or any(word in low for word in CREDENTIAL_WORDS):
         return "credentials", name
@@ -155,7 +159,7 @@ def _name_rule(name, stored=False):
         return (None if name in ALLOWED_DUNDER_NAMES else ("dunder", name))
     if name.startswith("_") and name != "_":  # a bare ``_`` is the usual throwaway loop variable
         return "private", name
-    if name in SYSTEM_MODULES:
+    if name in SYSTEM_MODULES and not (variable and name in VARIABLE_NAMES):
         return "system-module", name
     if any(word in low for word in AUTORUN_WORDS):
         return "runs-code", name
@@ -331,7 +335,7 @@ class _Checker:
             if keyword.arg is None and path and path.startswith("bpy."):
                 _raise("file-access", node, "Pass bpy options by name, not with `**`.")
             if keyword.arg is not None:
-                self.refuse(node, _name_rule(keyword.arg, stored=True))
+                self.refuse(node, _name_rule(keyword.arg, stored=True, variable=True))
         if path and path.startswith("bpy.props.") and any(k.arg in PROPERTY_CALLBACKS for k in node.keywords):
             self.refuse(node, ("deferred-code", path + "(update/get/set=...)"))
         if isinstance(func, ast.Attribute) and func.attr in FILE_CALLS:
@@ -381,7 +385,7 @@ class _Checker:
             elif isinstance(node, ast.Name):
                 if node.id in BLOCKED_NAMES:
                     self.refuse(node, ("blocked-name", node.id))
-                self.refuse(node, _name_rule(node.id))
+                self.refuse(node, _name_rule(node.id, variable=True))
                 if node.id in ATTRIBUTE_FUNCTIONS and not (
                         isinstance(self.parents.get(id(node)), ast.Call) and self.parents[id(node)].func is node):
                     _raise("dynamic-attribute", node, "`%s` may only be called directly." % node.id)
@@ -399,9 +403,9 @@ class _Checker:
                     if node.name not in ALLOWED_DUNDER_METHODS:
                         self.refuse(node, ("dunder", "def " + node.name))
                 else:
-                    self.refuse(node, _name_rule(node.name))
+                    self.refuse(node, _name_rule(node.name, variable=True))
             elif isinstance(node, ast.arg):
-                self.refuse(node, _name_rule(node.arg))
+                self.refuse(node, _name_rule(node.arg, variable=True))
             elif isinstance(node, ast.ExceptHandler):
                 self.check_handler(node)
             elif isinstance(node, ast.Assign):

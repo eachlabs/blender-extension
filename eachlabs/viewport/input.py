@@ -4,7 +4,7 @@ import time
 
 from .. import chat_run
 from . import draw, hover, live
-from ..ui import bar, bar_state, tokens as T, video_texts as V
+from ..ui import bar, bar_state, history_rows, tokens as T, video_texts as V
 
 
 def _target(context, event):
@@ -123,7 +123,7 @@ def _type(context, event):
     if result == "submit":
         live.overlay.submit(context)
     elif result == "blur" and (live.overlay.UI["quality_menu"] or live.overlay.UI["camera_menu"]
-                               or live.overlay.UI["video_menu"]):
+                               or live.overlay.UI["video_menu"] or live.overlay.UI["history_open"]):
         live.overlay.close_menus()  # Esc closes a menu first
     elif result == "blur" and (live.overlay.UI["video_confirm"] or live.overlay.UI["video_stop_ask"]):
         live.overlay.UI["video_confirm"] = live.overlay.UI["video_stop_ask"] = False  # then the question
@@ -167,6 +167,11 @@ def on_event(context, event):
         return {"RUNNING_MODAL"}
     if live.overlay.UI["pressed"] and event.value == "CLICK_DRAG":
         return {"RUNNING_MODAL"}
+    if live.overlay.UI["history_open"]:
+        step = history_rows.step(event.type, event.value, getattr(event, "mouse_y", 0) - getattr(event, "mouse_prev_y", 0))
+        if step and (event.type in history_rows.PAGE_KEYS or _target(context, event) is not None):
+            live.overlay.scroll_history(step)
+            return {"RUNNING_MODAL"}
     if live.overlay.UI["focused"] and event.value == "PRESS" and _owns(event):
         _type(context, event)
         return {"RUNNING_MODAL"}

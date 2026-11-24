@@ -1,5 +1,6 @@
 """Things in Blender: ids, parents, replaced parts and removal."""
 
+import json
 import types
 
 import bpy
@@ -301,12 +302,16 @@ box("Flowers", (0.2, 0.2, 0.3), (3, 0, 0.5))
 box("Stall", (2, 1, 0.9), (-4, 0, 0.45))
 box("Fish buried", (0.5, 0.2, 0.1), (-4, 0, 0.6))
 box("Bread", (0.4, 0.2, 0.1), (-4, 0, 0.95))
+box("Floor", (5, 5, 0.1), (12, 0, -0.05))
+box("Carpet", (2, 1.5, 0.02), (12, 0, 0.015))
+box("Fallen book", (0.2, 0.15, 0.0), (13.5, 0, 0.003))
+box("Kite", (0.5, 0.5, 0.02), (12, 2, 1.5))
 """
 
 
 def test_contents_on_holder():
     """A planned thing with a holder counts only when it stands on or in it."""
-    from eachlabs import scene_build
+    from eachlabs import plan3d, scene_build
     from eachlabs.chat import plan_flow
 
     scene = bpy.data.scenes.new("eachlabs_holder")
@@ -321,6 +326,35 @@ def test_contents_on_holder():
         check("holder: a thing buried inside the holder's volume is not on it",
               not plan_flow._on_holder(build, "fish", "stall"))
         check("holder: a thing lying on the holder's top is on it", plan_flow._on_holder(build, "bread", "stall"))
+        check("holder: a carpet a few millimetres above the floor is on it",
+              plan_flow._on_holder(build, "carpet", "floor"))
+        check("holder: a flat thing just above the floor is on it", plan_flow._on_holder(build, "fallen book", "floor"))
+        check("holder: a thing hanging well above the floor is not on it",
+              not plan_flow._on_holder(build, "kite", "floor"))
+        # Stalls on a square, planned "on the marketplace", which the build named a small pavilion elsewhere.
+        more = _step(build, HOLDER_CODE.split('box("Workbench"')[0] + 'box("Market square", (20, 20, 0.1), (40, 0, -0.05))\n'
+                     'box("Marketplace", (2, 2, 0.3), (40, 0, 0.15))\n'
+                     'box("Market stall 1", (2, 1, 1), (46, 0, 0.5))\n'
+                     'box("Crate", (0.5, 0.5, 0.5), (60, 0, 0.25))\n'
+                     'box("Shelf", (1, 0.4, 1), (60, 3, 0.5))\n')
+        check("holder: the market is built", more.get("ok"), str(more)[:300])
+        plan = plan3d.parse(json.dumps({"code": [{"name": "marketplace"}, {"name": "stalls", "on": "marketplace"},
+                                                 {"name": "well"}, {"name": "shelf"},
+                                                 {"name": "crate", "on": "shelf"}]}), 2)
+        run = types.SimpleNamespace(plan=plan, build=build, targets=[], jobs=[])
+        check("holder: stalls standing beside their holder are listed for the stage loop to move",
+              [i.name for i in plan_flow._missing(run)] == ["stalls", "well", "crate"],
+              str([i.name for i in plan_flow._missing(run)]))
+        check("holder: ... but only a thing that is not there counts as not built",
+              [i.name for i in plan_flow._missing(run, placed=False)] == ["well"])
+        lines = plan_flow.outcome_lines(run)
+        check("holder: the reply says the well is not built and the stalls are built in another place",
+              lines == ["Not built: the well.", "Built, but not where planned: the stalls (on or in the marketplace), "
+                        "the crate (on or in the shelf)."], str(lines))
+        bpy.data.objects["Crate"].location = (0.0, 3.0, 1.0)  # as a step's last line does: no redraw before the reply
+        check("holder: a thing just moved onto its holder is measured where it now stands",
+              [i.name for i in plan_flow._missing(run)] == ["stalls", "well"],
+              str([i.name for i in plan_flow._missing(run)]))
     finally:
         for obj in list(scene.objects):
             bpy.data.objects.remove(obj)

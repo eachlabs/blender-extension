@@ -7,7 +7,7 @@ import traceback
 from gpu_extras.batch import batch_for_shader
 
 from .. import chat_run, compat, preferences
-from ..chat import playback, selection, video_tab, video_window
+from ..chat import playback, selection, session_sync, video_tab, video_window
 from . import hover, live
 from ..ui import bar, bar_state
 
@@ -44,6 +44,7 @@ def current_state(now=None):
     if chat.running:
         live.overlay.UI["quality_menu"] = live.overlay.UI["camera_menu"] = False  # no menus while a run is going
         live.overlay.UI["video_menu"], live.overlay.UI["video_confirm"] = "", False
+        live.overlay.UI["history_open"] = False
     playing = playback.is_playing()
     cameras = playback.menu(bpy.context.scene) if finished and chat.status == "done" and not playing else []
     shot = None
@@ -58,7 +59,10 @@ def current_state(now=None):
                                 asked_open=live.overlay.UI["asked_open"],
                                 advanced=preferences.advanced_tools(bpy.context), tab=chat.target,
                                 cameras=cameras, camera_menu=live.overlay.UI["camera_menu"], playing=playing,
-                                thing=thing, shot=shot)
+                                thing=thing, shot=shot,
+                                history=() if chat.running else session_sync.transcript(bpy.context.scene),
+                                history_open=live.overlay.UI["history_open"],
+                                history_scroll=live.overlay.UI["history_scroll"])
     state.thinking_seconds = float(int(state.thinking_seconds))
     from . import fold  # it calls this module's redraw
 

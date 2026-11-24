@@ -12,7 +12,8 @@ The prompt bar's pixels and text, with no Blender code. The bar is drawn with Sk
 | `status_rows.py` | Stage chips, the asked prompt, the checking and thinking lines, 3D job rows, errors, the camera menu above the actions |
 | `action_rows.py` | Action pills (Play split with its camera menu part, Pause), the consent card, the plan card with its chips |
 | `tab_row.py` | Scene, Assets, Characters and Video above the input (wrapping in a narrow bar), the line under them saying what the next prompt does, and the chip of the selected thing it changes |
-| `input_rows.py` | The prompt field, the send button and the hint; the menus' rows (quality, cameras) |
+| `input_rows.py` | The prompt field, the history and settings buttons, the send button and the hint; the menus' rows (quality, cameras) |
+| `history_rows.py` | The scene chat's history above the input: each prompt and answer in a view of fixed height that scrolls, its title row with Close and the scroll arrows, and how far an input event moves it |
 | `video_line.py` | The shot video on the other tabs: its line on the done card, on the status line while a chat run goes, or in the note otherwise; its part of the folded line; and its pills |
 | `video_tab.py` | The Video tab from a `Shot`: the settings chips and their menus with prices, the notes (no camera, still camera, a move over 15 s), the confirm card Send opens, and what the tab puts on the bar state |
 | `video_card.py` | The Video tab's card for a video being made, made, failed or stopped: stage chips from the job's stage, time and price, the sentence on the stage and the next, the live line, Stop's question and the buttons |
@@ -38,6 +39,6 @@ The prompt bar's pixels and text, with no Blender code. The bar is drawn with Sk
 ## Tests
 
 `tests/test_bar_render.py`, `tests/test_bar_state.py`, `tests/test_play_cameras.py`, `tests/test_text_field.py`,
-`tests/test_tooltips.py`, `tests/test_video_tab.py`
+`tests/test_tooltips.py`, `tests/test_video_tab.py`, `tests/test_history_rows.py`
 (unit, with `skia-python`), and the
 bar checks in `scripts/gui-check.sh`.

@@ -46,7 +46,7 @@ from .input_rows import (  # noqa: F401
 )
 from .status_rows import _status_rows, error_lines  # noqa: F401
 from .tab_row import tab_row
-from . import video_rows
+from . import history_rows, video_rows
 
 try:
     import skia
@@ -84,6 +84,10 @@ class BarState:
     tabs_enabled: bool = True  # False while a run is going: the row is dimmed and has no hits
     thing: str = ""  # on Assets and Characters, the selected thing the next prompt changes; empty: it adds one
     settings: bool = False  # the settings button on the input row (the prompt bar always shows it)
+    history_button: bool = False  # the history button beside it: the scene chat has earlier prompts
+    history_open: bool = False  # the history view shows above the input
+    history: list = dataclasses.field(default_factory=list)  # (role, text, meta) per entry, oldest first, while open
+    history_scroll: float = 0.0  # logical px the view is moved up from the newest entry
     quality_label: str = ""  # the quality pill's text: Prototype or Final; empty draws no pill
     quality_enabled: bool = True  # False while a run is going: the pill is dimmed and has no hit
     quality_menu: list = dataclasses.field(default_factory=list)  # (name, hint, chosen) per item while it is open
@@ -143,15 +147,18 @@ def _rows(state, width):
         if state.quality_label and not quality_inline(state, width):
             rows.append(_quality_row(state, width))
         return rows
+    history = state.history_open and not state.quality_menu and state.mode not in _RUNNING + ("consent", "plan")
     if state.quality_menu and state.mode not in _RUNNING + ("consent", "plan"):
         rows = _menu_rows(state, width)
+    elif history:
+        rows = history_rows.rows(state, width)
     elif state.mode == "plan":
         rows = _plan_rows(state, width)
     elif state.mode == "consent":
         rows = _consent_rows(state, width)
     else:
         rows = _status_rows(state, width)
-    if state.tab and state.mode not in ("consent", "plan") and not state.quality_menu:
+    if state.tab and state.mode not in ("consent", "plan") and not state.quality_menu and not history:
         rows.append(tab_row(state, width))
     if state.quality_label and not quality_inline(state, width):
         rows.append(_quality_row(state, width))
@@ -189,6 +196,7 @@ def render(state, width, scale):
                                 note=clean(state.note), plan_3d=clean(state.plan_3d), plan_code=clean(state.plan_code),
                                 plan_note=clean(state.plan_note), plan_looks=clean(state.plan_looks),
                                 video_text=clean(state.video_text), video_error=clean(state.video_error),
+                                history=[(r, clean(t), clean(m)) for r, t, m in state.history],
                                 video_chips=[(h, clean(t)) for h, t in state.video_chips],
                                 video_menu=[(clean(n), clean(h), c) for n, h, c in state.video_menu],
                                 plan_chips=[(i, clean(t), m, c) for i, t, m, c in state.plan_chips],

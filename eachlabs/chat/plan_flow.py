@@ -9,6 +9,7 @@ from . import texture_jobs
 
 
 NOT_BUILT = "Not built: %s."
+MISPLACED = "Built, but not where planned: %s."
 HOLLOW_NOTE = ("%s holds no geometry of its own: what the person means are other objects of yours, found by where "
                "they stand and what they are (read_scene lists them). Change those, and attach each to it.")
 
@@ -120,7 +121,8 @@ def outcome_lines(run):
         return lines
     said = set()
     jobs = {job.name: job for job in chat_run._jobs(run)}
-    missing = {item.name for item in _missing(run)}
+    absent = _missing(run, placed=False)
+    missing = {item.name for item in absent}
     for item in run.plan.three_d:
         job = jobs.get(item.name)
         if job is not None and job.state == generation.DONE:
@@ -135,9 +137,14 @@ def outcome_lines(run):
             lines.append(chat_run.FAILED_REPLY % (item.name, job.error if job is not None and job.error else
                                          "it was never ordered"))
         said.add(item.name)
-    names = [item.name for item in _missing(run) if item.name not in said]
+    names = [item.name for item in absent if item.name not in said]
     if names:
         lines.append(not_built_line(names))
+    # A thing that is in the scene but not on its holder was built: saying "Not built" would offer to build it again.
+    off = [item for item in _missing(run) if item.name not in missing and item.name not in said]
+    if off:
+        lines.append(MISPLACED % ", ".join("the %s (on or in the %s)" % (" ".join(i.name.split()), i.holder)
+                                           for i in off))
     return lines
 
 
@@ -185,17 +192,22 @@ def not_built_line(names):
 
 
 
-def _missing(run):
-    """Main thread: the plan's items not in the scene; a 3D item whose model arrived is in it."""
+def _missing(run, placed=True):
+    """Main thread: the plan's items not in the scene; a 3D item whose model arrived is in it. With ``placed``, an
+    item that is there but not on or in its holder is listed too: the stage loop moves it; the reply and the
+    bar's button ask without it."""
     if run.plan is None:
         return []
     try:
         names = [o.name for o in run.build._objects()]
+        if placed:
+            run.build.scene.view_layers[0].update()  # a thing a step just moved is measured where it now stands
     except (RuntimeError, ReferenceError):  # the scene is gone
         return []
     done = {job.name for job in chat_run._jobs(run) if job.state == generation.DONE}
     names += [n for n in run.targets if n in run.build.scene.objects]  # the person's objects they pointed at
-    found = plan3d.missing(run.plan, names, done, placed=lambda item, holder: _on_holder(run.build, item, holder))
+    found = plan3d.missing(run.plan, names, done,
+                           placed=(lambda item, holder: _on_holder(run.build, item, holder)) if placed else None)
     # An item naming what stood in the scene before this prompt, or what the request pointed at, is not new: when it
     # is gone, the request removed it ("remove the lighthouse and put a stall there" plans the stall, never a
     # lighthouse to build).
@@ -232,12 +244,32 @@ def _on_holder(build, item, holder):
                 continue
             low, high = scene_build._box(part)
             x, y = (low[0] + high[0]) / 2, (low[1] + high[1]) / 2
+            start, reach = Vector((x, y, low[2] + 0.001)), REST_GAP_M + 0.002
             hit, where, _normal, _index, hit_obj, _matrix = scene.ray_cast(
-                depsgraph, Vector((x, y, low[2] + 0.001)), Vector((0.0, 0.0, -1.0)), distance=REST_GAP_M + 0.002)
+                depsgraph, start, Vector((0.0, 0.0, -1.0)), distance=reach)
             if hit and getattr(hit_obj, "original", hit_obj).session_uid in holder_ids:
+                return True
+            # The scene's ray starts inside the thing, so it meets the thing's own underside first (a carpet a
+            # few millimetres above the floor). Ask each holder part alone.
+            if any(_under(holder_part, depsgraph, start, reach) for holder_part in holder_parts):
                 return True
             for b_low, b_high in holder_boxes:
                 inside = all(b_low[i] <= (x, y)[i] <= b_high[i] for i in range(2)) and b_low[2] <= low[2] <= b_high[2]
                 if inside and high[2] >= b_high[2] + SHOWS_M:
                     return True
     return False
+
+
+def _under(holder_part, depsgraph, start, reach):
+    """True when ``holder_part``'s own surface is within ``reach`` metres straight below ``start`` (world space)."""
+    from mathutils import Vector
+
+    try:
+        evaluated = holder_part.evaluated_get(depsgraph)
+        to_local = evaluated.matrix_world.inverted()
+        origin, end = to_local @ start, to_local @ (start - Vector((0.0, 0.0, reach)))
+        if (end - origin).length == 0.0:
+            return False
+        return bool(evaluated.ray_cast(origin, end - origin, distance=(end - origin).length)[0])
+    except Exception:  # not a mesh, or a matrix that cannot be inverted: the scene's ray has the last word
+        return False

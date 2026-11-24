@@ -25,6 +25,43 @@ class ClientTestCase(unittest.TestCase):
         self.tmp.cleanup()
 
 
+class SessionTest(ClientTestCase):
+    LINES = [{"line_id": "t1-user", "role": "user", "kind": "user", "content": "A lighthouse."}]
+
+    def test_append_starts_a_session_for_the_scope(self):
+        self.server.route("POST", "/v1/eachsense/sessions/lines", (200, {}, {"session_id": "s1"}))
+        self.assertEqual(self.client.append_session_lines("blender", "run1", self.LINES), "s1")
+        sent = self.server.find("POST", "/v1/eachsense/sessions/lines")[0]
+        self.assertEqual(sent.json(), {"surface": "blender", "scope": "run1", "lines": self.LINES})
+        self.assertEqual(sent.headers["authorization"], "Bearer " + KEY)
+
+    def test_append_continues_a_known_session(self):
+        self.server.route("POST", "/v1/eachsense/sessions/lines", (200, {}, {"session_id": "s1"}))
+        self.client.append_session_lines("blender", "run1", self.LINES, session_id="s1")
+        self.assertEqual(self.server.find("POST", "/v1/eachsense/sessions/lines")[0].json()["session_id"], "s1")
+
+    def test_append_without_an_id_back_is_an_error(self):
+        self.server.route("POST", "/v1/eachsense/sessions/lines", (200, {}, {}))
+        with self.assertRaises(ApiError):
+            self.client.append_session_lines("blender", "run1", self.LINES)
+
+    def test_an_organization_without_stored_chats_gets_403(self):
+        self.server.route("POST", "/v1/eachsense/sessions/lines", (403, {}, {"error": "not stored"}))
+        with self.assertRaises(ApiError) as caught:
+            self.client.append_session_lines("blender", "run1", self.LINES)
+        self.assertEqual(caught.exception.status, 403)
+
+    def test_list_sessions_asks_for_the_surface_and_scope(self):
+        self.server.route("GET", "/v1/eachsense/sessions", (200, {}, {"sessions": [{"id": "s1"}]}))
+        self.assertEqual(self.client.list_sessions("blender", "run1"), [{"id": "s1"}])
+        query = self.server.find("GET", "/v1/eachsense/sessions")[0].query
+        self.assertEqual((query["surface"], query["scope"], query["limit"]), (["blender"], ["run1"], ["1"]))
+
+    def test_get_session_returns_its_messages(self):
+        self.server.route("GET", "/v1/eachsense/sessions/s1", (200, {}, {"messages": [{"role": "user"}]}))
+        self.assertEqual(self.client.get_session("s1"), [{"role": "user"}])
+
+
 class CatalogTest(ClientTestCase):
     def test_pages_models_by_100_without_auth(self):
         pages = {0: [{"slug": "m%d" % i} for i in range(100)],

@@ -9,8 +9,9 @@ from ..placement import settle
 from ..scene import replaced
 from ..polyhaven import apply as haven_apply, tools as haven_tools
 from .live import chat_run
-from . import (budget, candidates, concepts, debug_log, detail_budget, detail_steps, edits, events, object_jobs,
-               plan_flow, review as scene_review, review_run, selection, stage_models, texture_jobs, undo_watch)
+from . import (budget, candidates, concepts, debug_log, detail_budget, detail_steps, eachsense_build, edits, events,
+               object_jobs, plan_flow, review as scene_review, review_run, selection, smaller_picture, stage_models,
+               texture_jobs, undo_watch)
 
 
 def _main_things(run):
@@ -65,6 +66,11 @@ def _work(run, prompt, stages):
                 return review_run.views(run.build, _main_things(run))
             finally:
                 undo_watch._quiet()
+        if name == "end_stage":  # an each::sense build's stage is over: tidy, its undo step, the bar's dot
+            before = len(chat_run.STATE.changed)
+            events._apply(run, {"type": "stage", "stage": str(args.get("stage") or ""),
+                                "state": "partial" if args.get("state") == "partial" else "done"})
+            return {"changed": len(chat_run.STATE.changed) > before}
         if name == "review_mark":
             return review_run.mark(run)
         if name == "review_undo":
@@ -98,6 +104,11 @@ def _work(run, prompt, stages):
                 return candidates.shot(run.build, args["object"])
             finally:
                 undo_watch._quiet()
+        if name == "smaller_picture":  # an each::sense build's concept or reference picture, before it is sent
+            try:
+                return smaller_picture.smaller(args.get("url") or "")
+            finally:
+                undo_watch._quiet()  # the image it loaded and removed is not the person's edit
         if name == "look_at":  # the model's own look from four sides; temporary cameras only
             try:
                 return look_around.render_view(run.build, args.get("object"), args.get("hide") or (),
@@ -243,9 +254,12 @@ def _work(run, prompt, stages):
         if run.fresh:  # through the main-thread queue, so before the first step
             chat_run._call_soon(lambda: chat_run._drop_cube(run))
         concept = concepts._concept(run, prompt, post) if run.concept and not run.cancel.is_set() else None
+        # After the prompt was read (a find, a list and an edit stayed here) and the plan, the 3D orders and the
+        # pictures were settled: each::sense builds the stages with what they brought.
+        on_eachsense = _on_eachsense(run, stages)
         try:
             executor = chat_loop.Executor(chat_run._call_soon, run.step_seconds + chat_run.EXECUTOR_MARGIN, execute=execute)
-            if run.free_assets_on:
+            if run.free_assets_on:  # an each::sense build's free_sky and free_texture download here too
                 executor = haven_tools.on_worker(executor, run.client, run.cache_folder, run.cancel)
             more = None
             if run.detail_more:
@@ -256,27 +270,14 @@ def _work(run, prompt, stages):
             if run.limits.detail_rounds is None:  # no plan scaled the limits: the person's limit still holds
                 pool = max(0, run.rounds_cap - run.limits.total_rounds)
                 run.limits = replace(run.limits, detail_rounds=pool, extra_rounds=min(run.limits.extra_rounds, pool))
-
-            def call(model, messages, tools, tokens, reasoning):
-                return run.client.chat_completion(model, messages, tools, timeout=run.reply_seconds, max_tokens=tokens,
-                                                  reasoning=reasoning)
-            main = stage_models.detail_route(run.model, run.detail_model, call)
-
-            def improve(scene, rounds, total):
-                return detail_steps._improve(run, prompt, scene, rounds, total, more or llm, quick_llm, executor, post,
-                                review if run.code_check else None, cap, run.limits.detail_rounds, main)
-            routes = stage_models.routes(run.model, run.light_model, call)
-            reviewer = None  # a find, an edit and a retry of later stages never get here or are not full
-            if run.scene_review and full and (run.visual is None or run.visual.accepted):
-                reviewer = scene_review.Reviewer(
-                    chat_loop.retried(llm, run.cancel), chat_loop.retried(quick_llm, run.cancel), executor, run.cancel,
-                    post, run.request, run.earlier, lambda entry: debug_log.debug_log(entry, run.secrets))
-            asked = prompt + ("\n\n" + run.library_offer if getattr(run, "library_offer", "") else "")
-            result = chat_loop.run(asked, llm, executor, post, run.cancel,
-                                   run.limits, stages, run.earlier, run.secrets,
-                                   review if run.code_check else None, run.blender, quick_llm, cap, objects,
-                                   left, concept, run.visual, improve if run.detail is not None else None,
-                                   assets=run.free_assets_on, routes=routes, scene_review=reviewer)
+            reviewing = bool(run.scene_review and full and (run.visual is None or run.visual.accepted))
+            result = None
+            if on_eachsense:
+                result = _work_eachsense(run, prompt, stages, executor, review,
+                                         _eachsense_inputs(run, stages, objects, left, concept, reviewing))
+            if result is None:  # each::sense is off, or it did not take the build: nothing ran there
+                result = _local_loop(run, prompt, stages, llm, quick_llm, cap, executor, post, review, objects, left,
+                                     concept, more, reviewing)
         except Exception as exc:  # A worker must always report back.
             result = chat_loop.RunResult("stopped", str(exc) or type(exc).__name__, 0, None)
         if run.visual is not None and not run.visual.accepted:
@@ -292,6 +293,106 @@ def _work(run, prompt, stages):
     finally:
         chat_run._call_soon(lambda: edits._end_edit(run.build))
         thread_safety.chat_thread_ended()
+
+
+
+def _local_loop(run, prompt, stages, llm, quick_llm, cap, executor, post, review, objects, left, concept, more,
+                reviewing):
+    """Worker thread: the stage loop here, with the detail stage, the routes and the scene review."""
+    def call(model, messages, tools, tokens, reasoning):
+        return run.client.chat_completion(model, messages, tools, timeout=run.reply_seconds, max_tokens=tokens,
+                                          reasoning=reasoning)
+    main = stage_models.detail_route(run.model, run.detail_model, call)
+
+    def improve(scene, rounds, total):
+        return detail_steps._improve(run, prompt, scene, rounds, total, more or llm, quick_llm, executor, post,
+                                     review if run.code_check else None, cap, run.limits.detail_rounds, main)
+    routes = stage_models.routes(run.model, run.light_model, call)
+    reviewer = None  # a find, an edit and a retry of later stages never get here or are not full
+    if reviewing:
+        reviewer = scene_review.Reviewer(
+            chat_loop.retried(llm, run.cancel), chat_loop.retried(quick_llm, run.cancel), executor, run.cancel,
+            post, run.request, run.earlier, lambda entry: debug_log.debug_log(entry, run.secrets))
+    asked = prompt + ("\n\n" + run.library_offer if getattr(run, "library_offer", "") else "")
+    return chat_loop.run(asked, llm, executor, post, run.cancel,
+                         run.limits, stages, run.earlier, run.secrets,
+                         review if run.code_check else None, run.blender, quick_llm, cap, objects,
+                         left, concept, run.visual, improve if run.detail is not None else None,
+                         assets=run.free_assets_on, routes=routes, scene_review=reviewer)
+
+
+def _on_eachsense(run, stages):
+    """each::sense builds this run: the preference is on, it is a request on the Scene tab, it asks for stages
+    each::sense builds, and the API offers it. Called once the prompt was read, so edits never get here."""
+    return (getattr(run, "eachsense_on", False) and getattr(run, "target", targets.SCENE) == targets.SCENE
+            and any(s in eachsense_build.STAGES for s in stages) and eachsense_build.offered(run.client))
+
+
+def _eachsense_inputs(run, stages, objects, left, concept, reviewing):
+    """What this Blender brings to an each::sense build (its ``build_inputs`` answer): the approved plan's brief,
+    the concept picture, the textures left, the detail and review settings, pictures on or off, the limits, the
+    scene's earlier prompts (edits and local builds too; a retry's own prompt is not one), the helper library's
+    offer and whether free assets are on."""
+    settings = run.detail if chat_loop.DETAIL in stages else None
+    limits = run.limits
+    return {
+        "visual": run.visual is not None and run.visual.accepted,
+        "concept": concept or "",
+        "generation": {"brief": objects.brief, "complete": bool(objects.complete)} if objects is not None else None,
+        "textures": max(0, int(left or 0)),
+        "detail": None if settings is None else {
+            "rounds": settings.rounds, "parallel": settings.parallel, "objects": settings.objects,
+            "look": settings.look, "light_rounds": settings.light_rounds, "light_objects": settings.light_objects,
+            "candidates": settings.candidates, "max_failures": settings.max_failures,
+            "more": bool(getattr(run, "detail_more", False))},
+        "planned": [[name, level] for name, level in getattr(run, "planned", None) or ()],
+        "scene_review": reviewing,
+        "request": run.request or "",
+        "earlier": [p for p in run.earlier or () if isinstance(p, str)],
+        "library": getattr(run, "library_offer", "") or "",
+        "assets": bool(run.free_assets_on),
+        "limits": {"total_rounds": limits.total_rounds, "layout_rounds": limits.rounds_for("layout"),
+                   "extra_rounds": limits.extra_rounds, "max_failures": limits.max_failures,
+                   **({"detail_rounds": limits.detail_rounds} if limits.detail_rounds is not None else {})},
+    }
+
+
+def _work_eachsense(run, prompt, stages, executor, review, inputs):
+    """Worker thread: the build runs on each::sense and every tool it asks for runs here. The caller waits for the
+    3D objects and ends the run as a local one. ``None`` when each::sense did not take the build: the caller
+    runs the local loop, with the plan and the pictures already settled."""
+    def post(event):
+        chat_run._call_soon(lambda: events._apply(run, event))
+
+    def session(session_id):
+        chat_run._call_soon(lambda: setattr(run.build, "session_id", session_id))
+
+    def smaller(url):
+        if not url:
+            return ""
+        try:
+            return executor("smaller_picture", {"url": url})
+        except Exception:  # sent as drawn; a concept too big for one answer is left out
+            return url
+
+    def reference(name):  # waits on this worker while the reference is still drawing
+        return {"image": smaller(concepts._reference_for(run, name))}
+
+    run.on_eachsense = True  # its session lines are each::sense's, not session_sync's
+    inputs = dict(inputs, concept=smaller(inputs.get("concept") or ""))
+    try:
+        return eachsense_build.run(
+            run.client, prompt, executor, post, run.cancel, stages=stages, scope=run.build.run_id,
+            session_id=run.build.session_id, blender=run.blender, tier=run.eachsense_tier, secrets=run.secrets,
+            review=review if run.code_check else None, on_session=session, inputs=inputs,
+            local={"reference_picture": lambda args: reference(str(args.get("object") or "")),
+                   "generation_notes": lambda args: object_jobs._failed_notes(run)}, shrink=smaller)
+    except eachsense_build.NotStarted as exc:
+        run.on_eachsense = False  # the local loop's run: session_sync stores its lines
+        debug_log.debug_log({"eachsense": "not started", "error": str(exc)}, run.secrets)
+        return None
+    except Exception as exc:  # A worker must always report back.
+        return chat_loop.RunResult("stopped", str(exc) or type(exc).__name__, 0, None)
 
 
 

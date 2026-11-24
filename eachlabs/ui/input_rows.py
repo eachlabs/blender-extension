@@ -47,6 +47,7 @@ def _quality_width(state):
 def _field_width(width, state=None):
     """The text width of the input row without the quality pill (and without the settings button when shown)."""
     room = width - T.MARK_SIZE - T.MARK_GAP - T.BUTTON - T.BUTTON_GAP
+    room -= T.HISTORY + T.PILL_GAP if state is not None and state.history_button else 0
     return room - (T.SETTINGS + T.PILL_GAP if state is not None and state.settings else 0)
 
 
@@ -204,6 +205,9 @@ def _input_row(state, width):
         if state.settings:
             left = bx - T.PILL_GAP - T.SETTINGS
             _draw_settings(canvas, left, y + (height - T.SETTINGS) / 2, hits)
+        if state.history_button:
+            left = left - T.PILL_GAP - T.HISTORY
+            _draw_history(canvas, state, left, y + (height - T.HISTORY) / 2, hits)
         if inline:
             ph = T.PILL_LINE + 2 * T.PILL_PAD_Y
             _draw_quality_pill(canvas, state, left - T.PILL_GAP - _quality_width(state), y + (height - ph) / 2, hits)
@@ -222,6 +226,21 @@ def _draw_settings(canvas, x, y, hits):
         canvas.drawLine(cx - 6, cy + row, cx + 6, cy + row, line)
         canvas.drawCircle(cx + knob, cy + row, 1.9, _paint(T.PILL_TEXT))
     hits["settings"] = (x, y, d, d)
+
+
+
+def _draw_history(canvas, state, x, y, hits):
+    """The history button: a round secondary button with a clock; its edge is marked while the history is open."""
+    d = T.HISTORY
+    cx, cy = x + d / 2, y + d / 2
+    canvas.drawCircle(cx, cy, d / 2, _paint(T.SECONDARY_FILL))
+    canvas.drawCircle(cx, cy, d / 2 - 0.5,
+                      _paint(T.MENU_CHOSEN_STROKE if state.history_open else T.SECONDARY_STROKE, stroke=1))
+    line = _paint(T.PILL_TEXT, stroke=1.4)
+    canvas.drawCircle(cx, cy, 6.5, line)
+    canvas.drawLine(cx, cy, cx, cy - 4, line)
+    canvas.drawLine(cx, cy, cx + 3, cy + 1.5, line)
+    hits["history"] = (x, y, d, d)
 
 
 
